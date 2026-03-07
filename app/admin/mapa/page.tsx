@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const MapContainer = dynamic(
@@ -53,21 +52,11 @@ type VehicleMarker = {
   status: string
 }
 
-const carIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl:
-    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
-
 export default function MapaPage() {
   const [markers, setMarkers] = useState<VehicleMarker[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [carIcon, setCarIcon] = useState<any>(null)
 
   async function loadLocations() {
     const [
@@ -129,6 +118,26 @@ export default function MapaPage() {
 
   useEffect(() => {
     setMounted(true)
+
+    async function loadLeafletIcon() {
+      const L = await import('leaflet')
+
+      const icon = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl:
+          'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl:
+          'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      })
+
+      setCarIcon(icon)
+    }
+
+    loadLeafletIcon()
     loadLocations()
 
     const interval = setInterval(() => {
@@ -197,31 +206,32 @@ export default function MapaPage() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {markers.map((marker) => (
-          <Marker
-            key={marker.vehicle_id}
-            position={[marker.lat, marker.lng]}
-            icon={carIcon}
-          >
-            <Popup>
-              <div>
-                <strong>{marker.driver_name}</strong>
-                <br />
-                Patente: {marker.plate}
-                <br />
-                Vehículo: {marker.vehicle_model || 'Sin modelo'}
-                <br />
-                Estado: {marker.status}
-                <br />
-                Lat: {marker.lat.toFixed(5)}
-                <br />
-                Lng: {marker.lng.toFixed(5)}
-                <br />
-                Actualizado: {new Date(marker.recorded_at).toLocaleString()}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {carIcon &&
+          markers.map((marker) => (
+            <Marker
+              key={marker.vehicle_id}
+              position={[marker.lat, marker.lng]}
+              icon={carIcon}
+            >
+              <Popup>
+                <div>
+                  <strong>{marker.driver_name}</strong>
+                  <br />
+                  Patente: {marker.plate}
+                  <br />
+                  Vehículo: {marker.vehicle_model || 'Sin modelo'}
+                  <br />
+                  Estado: {marker.status}
+                  <br />
+                  Lat: {marker.lat.toFixed(5)}
+                  <br />
+                  Lng: {marker.lng.toFixed(5)}
+                  <br />
+                  Actualizado: {new Date(marker.recorded_at).toLocaleString()}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
       </MapContainer>
     </main>
   )
