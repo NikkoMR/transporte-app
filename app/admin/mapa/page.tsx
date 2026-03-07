@@ -1,10 +1,30 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+
+const MapContainer = dynamic(
+  () => import('react-leaflet').then((mod) => mod.MapContainer),
+  { ssr: false }
+)
+
+const TileLayer = dynamic(
+  () => import('react-leaflet').then((mod) => mod.TileLayer),
+  { ssr: false }
+)
+
+const Marker = dynamic(
+  () => import('react-leaflet').then((mod) => mod.Marker),
+  { ssr: false }
+)
+
+const Popup = dynamic(
+  () => import('react-leaflet').then((mod) => mod.Popup),
+  { ssr: false }
+)
 
 type VehicleLocationRow = {
   id: string
@@ -47,6 +67,7 @@ const carIcon = L.icon({
 export default function MapaPage() {
   const [markers, setMarkers] = useState<VehicleMarker[]>([])
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
   async function loadLocations() {
     const [
@@ -81,7 +102,7 @@ export default function MapaPage() {
     })
 
     const vehicleMap = new Map<string, Vehicle>(
-      (((vehiclesData as Vehicle[]) || []).map((v) => [v.id, v]))
+      ((vehiclesData as Vehicle[]) || []).map((v) => [v.id, v])
     )
 
     const merged: VehicleMarker[] = Object.values(latestByVehicle)
@@ -107,6 +128,7 @@ export default function MapaPage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     loadLocations()
 
     const interval = setInterval(() => {
@@ -144,6 +166,14 @@ export default function MapaPage() {
 
     return [-33.45, -70.66]
   }, [markers])
+
+  if (!mounted) {
+    return (
+      <main className="h-screen w-full bg-slate-950 text-white flex items-center justify-center">
+        <p>Cargando mapa...</p>
+      </main>
+    )
+  }
 
   return (
     <main className="h-screen w-full bg-slate-950 text-white">
