@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export default function Home() {
   const [form, setForm] = useState({
@@ -35,18 +34,33 @@ export default function Home() {
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.from('transport_requests').insert([
-      {
-        ...form,
-        status: 'pendiente',
-      },
-    ])
+    try {
+      const response = await fetch('/api/create-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      })
 
-    if (error) {
-      setMessage('Error al guardar la solicitud')
-      console.error(error)
-    } else {
-      setMessage('Solicitud enviada correctamente')
+      const result = await response.json()
+
+      if (!response.ok) {
+        setMessage(result.error || 'Error al enviar la solicitud')
+        setLoading(false)
+        return
+      }
+
+      if (result.assigned) {
+        setMessage(
+          'Solicitud enviada. Tu transporte ya fue asignado y te llegará un WhatsApp.'
+        )
+      } else {
+        setMessage(
+          'Solicitud enviada. Quedó pendiente mientras se asigna un vehículo.'
+        )
+      }
+
       setForm({
         full_name: '',
         phone: '',
@@ -58,6 +72,9 @@ export default function Home() {
         passenger_count: 1,
         notes: '',
       })
+    } catch (error) {
+      console.error(error)
+      setMessage('Error al enviar la solicitud')
     }
 
     setLoading(false)

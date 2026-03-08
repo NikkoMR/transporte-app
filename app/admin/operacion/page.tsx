@@ -72,17 +72,16 @@ export default function OperacionPage() {
   async function loadData() {
     setLoading(true)
 
-    const [{ data: requestsData, error: requestsError }, { data: vehiclesData, error: vehiclesError }] =
-      await Promise.all([
-        supabase
-          .from('transport_requests')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vehicles')
-          .select('*')
-          .order('created_at', { ascending: false }),
-      ])
+    const [
+      { data: requestsData, error: requestsError },
+      { data: vehiclesData, error: vehiclesError },
+    ] = await Promise.all([
+      supabase
+        .from('transport_requests')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
+    ])
 
     if (requestsError) {
       console.error('Error cargando solicitudes:', requestsError)
@@ -101,19 +100,56 @@ export default function OperacionPage() {
     loadData()
   }, [])
 
+  async function sendAssignmentWhatsApp(request: TransportRequest, vehicle: Vehicle) {
+    try {
+      const trackingUrl = `${window.location.origin}/conductor/${vehicle.id}`
+
+      const message =
+        `Hola ${request.full_name} 👋\n\n` +
+        `Tu transporte fue asignado 🚗\n\n` +
+        `Conductor: ${vehicle.driver_name}\n` +
+        `Vehículo: ${vehicle.vehicle_model || 'No informado'}\n` +
+        `Patente: ${vehicle.plate}\n` +
+        `Recogida: ${request.pickup_address}\n` +
+        `Destino: ${request.destination_address}\n\n` +
+        `Tu conductor irá en camino pronto.\n` +
+        `Seguimiento: ${trackingUrl}`
+
+      const response = await fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: request.phone,
+          message,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('Error enviando WhatsApp:', result)
+      } else {
+        console.log('WhatsApp enviado:', result)
+      }
+    } catch (error) {
+      console.error('Error llamando a /api/send-whatsapp:', error)
+    }
+  }
+
   async function assignVehicle(
-    requestId: string,
-    vehicle: Vehicle,
-    passengers: number
+    request: TransportRequest,
+    vehicle: Vehicle
   ) {
-    if (vehicle.capacity_available < passengers) {
+    if (vehicle.capacity_available < request.passenger_count) {
       alert('Ese vehículo ya no tiene cupos suficientes.')
       return
     }
 
-    setAssigningId(`${requestId}-${vehicle.id}`)
+    setAssigningId(`${request.id}-${vehicle.id}`)
 
-    const newCapacity = vehicle.capacity_available - passengers
+    const newCapacity = vehicle.capacity_available - request.passenger_count
     const newStatus = newCapacity === 0 ? 'completo' : 'disponible'
 
     const { error: requestError } = await supabase
@@ -123,7 +159,7 @@ export default function OperacionPage() {
         assigned_vehicle_id: vehicle.id,
         assigned_at: new Date().toISOString(),
       })
-      .eq('id', requestId)
+      .eq('id', request.id)
 
     if (requestError) {
       console.error('Error asignando solicitud:', requestError)
@@ -150,12 +186,14 @@ export default function OperacionPage() {
 
     await supabase.from('trip_events').insert([
       {
-        request_id: requestId,
+        request_id: request.id,
         vehicle_id: vehicle.id,
         event_type: 'asignado',
         event_note: `Solicitud asignada a ${vehicle.driver_name} (${vehicle.plate})`,
       },
     ])
+
+    await sendAssignmentWhatsApp(request, vehicle)
 
     setAssigningId(null)
     await loadData()
@@ -210,6 +248,8 @@ export default function OperacionPage() {
     (vehicle) => vehicle.status === 'disponible'
   )
 
+  const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
+
   return (
     <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
       <div className="max-w-7xl mx-auto">
@@ -241,6 +281,10 @@ export default function OperacionPage() {
                       request,
                       availableVehicles
                     )
+
+                    const assignedVehicle = request.assigned_vehicle_id
+                      ? vehicleById.get(request.assigned_vehicle_id)
+                      : undefined
 
                     return (
                       <div
@@ -289,6 +333,15 @@ export default function OperacionPage() {
                             <span className="text-slate-400">Observaciones:</span>{' '}
                             {request.notes || 'Sin observaciones'}
                           </p>
+
+                          {assignedVehicle && (
+                            <p>
+                              <span className="text-slate-400">
+                                Vehículo asignado:
+                              </span>{' '}
+                              {assignedVehicle.driver_name} — {assignedVehicle.plate}
+                            </p>
+                          )}
                         </div>
 
                         {request.status === 'asignado' && (
@@ -406,13 +459,7 @@ export default function OperacionPage() {
                                       </div>
 
                                       <button
-                                        onClick={() =>
-                                          assignVehicle(
-                                            request.id,
-                                            vehicle,
-                                            request.passenger_count
-                                          )
-                                        }
+                                        onClick={() => assignVehicle(request, vehicle)}
                                         disabled={currentAssigning}
                                         className="mt-3 w-full rounded-lg bg-green-600 hover:bg-green-500 px-3 py-2 text-sm font-semibold disabled:opacity-60"
                                       >
