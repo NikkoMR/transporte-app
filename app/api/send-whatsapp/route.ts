@@ -63,7 +63,7 @@ async function sendKapsoTemplate(params: {
         template: {
           name: 'transporte_asignado',
           language: {
-            code: 'es_AR',
+            code: 'es_ES',
           },
           components: [
             {
