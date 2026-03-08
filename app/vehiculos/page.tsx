@@ -5,77 +5,76 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function VehiculosPage() {
-  const router = useRouter()
 
-  const [form, setForm] = useState({
-    driver_name: '',
-    driver_phone: '',
-    plate: '',
-    vehicle_model: '',
-    capacity_total: 1,
-    capacity_available: 1,
-    current_zone: '',
-    available_from: '',
-    notes: '',
-  })
+  const router = useRouter()
 
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target
+  const [form, setForm] = useState({
+    driver_name: '',
+    phone: '',
+    plate: '',
+    vehicle_model: '',
+    capacity_total: 1,
+    capacity_available: 1,
+    zone: '',
+    available_from: '',
+    notes: ''
+  })
 
-    setForm((prev) => ({
-      ...prev,
-      [name]:
-        name === 'capacity_total' || name === 'capacity_available'
-          ? Number(value)
-          : value,
-    }))
+  function handleChange(e:any){
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value
+    })
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e:any){
+
     e.preventDefault()
+
     setLoading(true)
     setMessage('')
 
     const { data, error } = await supabase
       .from('vehicles')
-      .insert([
-        {
-          ...form,
-          status: 'disponible',
-        },
-      ])
-      .select('id')
+      .insert({
+        driver_name: form.driver_name,
+        phone: form.phone,
+        plate: form.plate,
+        vehicle_model: form.vehicle_model,
+        capacity_total: form.capacity_total,
+        capacity_available: form.capacity_available,
+        zone: form.zone,
+        available_from: form.available_from,
+        notes: form.notes
+      })
+      .select()
       .single()
 
-    if (error || !data) {
-      setMessage('Error al guardar el vehículo')
-      console.error(error)
+    if(error){
+      setMessage('Error guardando vehículo')
       setLoading(false)
       return
     }
 
-    setMessage('Vehículo guardado correctamente')
-
+    // REDIRECCION AL PANEL DEL CHOFER
     router.push(`/chofer/${data.id}`)
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Registro de vehículos</h1>
-        <p className="text-slate-300 mb-8">
-          Completa este formulario para registrar un auto disponible.
-        </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 bg-slate-900 p-6 rounded-2xl border border-slate-800"
-        >
+    <main className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
+
+      <div className="w-full max-w-xl bg-slate-900 rounded-xl p-6">
+
+        <h1 className="text-xl text-white mb-6 text-center">
+          Registro de vehículo
+        </h1>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+
           <input
             name="driver_name"
             placeholder="Nombre del conductor"
@@ -86,9 +85,9 @@ export default function VehiculosPage() {
           />
 
           <input
-            name="driver_phone"
+            name="phone"
             placeholder="Teléfono del conductor"
-            value={form.driver_phone}
+            value={form.phone}
             onChange={handleChange}
             className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
             required
@@ -111,63 +110,94 @@ export default function VehiculosPage() {
             className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="number"
-              name="capacity_total"
-              min="1"
-              value={form.capacity_total}
-              onChange={handleChange}
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-              required
-            />
+          {/* CAPACIDAD */}
 
-            <input
-              type="number"
-              name="capacity_available"
-              min="0"
-              value={form.capacity_available}
-              onChange={handleChange}
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+
+            <div>
+              <label className="text-sm text-slate-300">
+                Capacidad total
+              </label>
+
+              <input
+                type="number"
+                name="capacity_total"
+                value={form.capacity_total}
+                onChange={handleChange}
+                min="1"
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-300">
+                Cupos disponibles
+              </label>
+
+              <input
+                type="number"
+                name="capacity_available"
+                value={form.capacity_available}
+                onChange={handleChange}
+                min="0"
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
+                required
+              />
+            </div>
+
           </div>
 
           <input
-            name="current_zone"
+            name="zone"
             placeholder="Zona actual"
-            value={form.current_zone}
+            value={form.zone}
             onChange={handleChange}
             className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
           />
 
-          <input
-            type="time"
-            name="available_from"
-            value={form.available_from}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-          />
+          <div>
+
+            <label className="text-sm text-slate-300">
+              Disponible desde
+            </label>
+
+            <input
+              type="time"
+              name="available_from"
+              value={form.available_from}
+              onChange={handleChange}
+              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
+            />
+
+          </div>
 
           <textarea
             name="notes"
             placeholder="Observaciones"
             value={form.notes}
             onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 min-h-28"
+            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-blue-600 hover:bg-blue-500 transition px-4 py-3 font-semibold disabled:opacity-60"
+            className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg"
           >
             {loading ? 'Guardando...' : 'Guardar vehículo'}
           </button>
 
-          {message && <p className="text-sm text-slate-200 pt-2">{message}</p>}
+          {message && (
+            <p className="text-sm text-red-400 text-center">
+              {message}
+            </p>
+          )}
+
         </form>
+
       </div>
+
     </main>
   )
 }
