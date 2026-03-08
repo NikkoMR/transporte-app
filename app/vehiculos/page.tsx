@@ -1,15 +1,19 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function VehiculosPage() {
+  const router = useRouter()
+
   const [form, setForm] = useState({
     driver_name: '',
     driver_phone: '',
     plate: '',
     vehicle_model: '',
     capacity_total: 1,
+    capacity_available: 1,
     current_zone: '',
     available_from: '',
     notes: '',
@@ -25,7 +29,10 @@ export default function VehiculosPage() {
 
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'capacity_total' ? Number(value) : value,
+      [name]:
+        name === 'capacity_total' || name === 'capacity_available'
+          ? Number(value)
+          : value,
     }))
   }
 
@@ -34,32 +41,27 @@ export default function VehiculosPage() {
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.from('vehicles').insert([
-      {
-        ...form,
-        capacity_available: form.capacity_total,
-        status: 'disponible',
-      },
-    ])
+    const { data, error } = await supabase
+      .from('vehicles')
+      .insert([
+        {
+          ...form,
+          status: 'disponible',
+        },
+      ])
+      .select('id')
+      .single()
 
-    if (error) {
+    if (error || !data) {
       setMessage('Error al guardar el vehículo')
       console.error(error)
-    } else {
-      setMessage('Vehículo guardado correctamente')
-      setForm({
-        driver_name: '',
-        driver_phone: '',
-        plate: '',
-        vehicle_model: '',
-        capacity_total: 1,
-        current_zone: '',
-        available_from: '',
-        notes: '',
-      })
+      setLoading(false)
+      return
     }
 
-    setLoading(false)
+    setMessage('Vehículo guardado correctamente')
+
+    router.push(`/chofer/${data.id}`)
   }
 
   return (
@@ -109,15 +111,22 @@ export default function VehiculosPage() {
             className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
           />
 
-          <div>
-            <label className="text-sm text-slate-300 block mb-1">
-              Capacidad total del vehículo
-            </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="number"
               name="capacity_total"
               min="1"
               value={form.capacity_total}
+              onChange={handleChange}
+              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
+              required
+            />
+
+            <input
+              type="number"
+              name="capacity_available"
+              min="0"
+              value={form.capacity_available}
               onChange={handleChange}
               className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
               required
