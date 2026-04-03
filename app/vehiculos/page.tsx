@@ -131,7 +131,7 @@ export default function VehiculosPage() {
             <input
               type="number"
               name="capacity_total"
-              placeholder="Capacidad total"
+              placeholder="Asientos totales"
               value={form.capacity_total}
               onChange={handleChange}
               required
@@ -141,7 +141,7 @@ export default function VehiculosPage() {
             <input
               type="number"
               name="capacity_available"
-              placeholder="Cupos disponibles"
+              placeholder="Asientos disponibles"
               value={form.capacity_available}
               onChange={handleChange}
               required
