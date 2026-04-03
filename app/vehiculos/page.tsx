@@ -41,7 +41,7 @@ export default function VehiculosPage() {
     setMessage('')
 
     try {
-      const response = await fetch('/api/register-vehicle', {
+      const response = await fetch('/api/registervehicle', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -97,21 +97,20 @@ async function sendKapsoTemplate(params: {
 
   const data = await response.json()
 
-  console.log('REGISTER-VEHICLE -> KAPSO STATUS:', response.status)
-  console.log('REGISTER-VEHICLE -> KAPSO RESULT:', data)
+  console.log('REGISTERVEHICLE -> KAPSO STATUS:', response.status)
+  console.log('REGISTERVEHICLE -> KAPSO RESULT:', data)
 
   if (!response.ok) {
-    console.error('REGISTER-VEHICLE -> KAPSO ERROR:', data)
+    console.error('REGISTERVEHICLE -> KAPSO ERROR:', data)
     throw new Error(`Kapso devolvió ${response.status}`)
   }
 }
 
-// Para probar en navegador que la ruta existe
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    route: '/api/register-vehicle',
-    message: 'Ruta register-vehicle operativa',
+    route: '/api/registervehicle',
+    message: 'Ruta registervehicle operativa',
   })
 }
 
@@ -194,7 +193,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Si quedó sin cupos, solo guardamos
     if (capacityAvailable <= 0) {
       return NextResponse.json({
         success: true,
@@ -228,25 +226,6 @@ export async function POST(req: Request) {
 
     const pendingRequests = (pendingRequestsData as PendingRequest[]) || []
 
-    console.log('VEHICULO NUEVO:', {
-      id: insertedVehicle.id,
-      driver: insertedVehicle.driver_name,
-      plate: insertedVehicle.plate,
-      zone: insertedVehicle.current_zone,
-      capacityAvailable,
-    })
-
-    console.log(
-      'PENDIENTES ENCONTRADAS:',
-      pendingRequests.map((r) => ({
-        id: r.id,
-        full_name: r.full_name,
-        pickup_zone: r.pickup_zone,
-        passenger_count: r.passenger_count,
-        status: r.status,
-      }))
-    )
-
     const compatibleSameZone = pendingRequests.find((request) => {
       return (
         Number(request.passenger_count) <= capacityAvailable &&
@@ -260,10 +239,6 @@ export async function POST(req: Request) {
     })
 
     const selectedRequest = compatibleSameZone || compatibleFallback
-
-    console.log('COMPATIBLE MISMA ZONA:', compatibleSameZone)
-    console.log('COMPATIBLE FALLBACK:', compatibleFallback)
-    console.log('SOLICITUD SELECCIONADA:', selectedRequest)
 
     if (!selectedRequest) {
       return NextResponse.json({
@@ -340,8 +315,6 @@ export async function POST(req: Request) {
 
     const trackingUrl = `${baseUrl}/tracking/${selectedRequest.id}`
 
-    console.log('TRACKING URL GENERADO DESDE VEHICULO:', trackingUrl)
-
     try {
       await sendKapsoTemplate({
         phone: selectedRequest.phone,
@@ -355,22 +328,20 @@ export async function POST(req: Request) {
       console.error('AUTO ASSIGN FROM VEHICLE -> WHATSAPP ERROR:', whatsappError)
     }
 
-    const finalVehicle: Vehicle = {
-      ...insertedVehicle,
-      capacity_available: newCapacityAvailable,
-      status: newVehicleStatus,
-    }
-
     return NextResponse.json({
       success: true,
-      vehicle: finalVehicle,
+      vehicle: {
+        ...insertedVehicle,
+        capacity_available: newCapacityAvailable,
+        status: newVehicleStatus,
+      } as Vehicle,
       assignedRequest: selectedRequest,
       trackingUrl,
       message:
         'Vehículo guardado y se asignó automáticamente una solicitud pendiente.',
     })
   } catch (error) {
-    console.error('ERROR INTERNO REGISTER-VEHICLE:', error)
+    console.error('ERROR INTERNO REGISTERVEHICLE:', error)
 
     return NextResponse.json(
       { error: 'Error interno registrando vehículo', details: String(error) },
