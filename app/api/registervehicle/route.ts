@@ -1,14 +1,8 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
 function normalizeZone(value: string | null | undefined) {
   return (value || '').trim().toUpperCase()
-}
-
-const NEAR_ZONES: Record<string, string[]> = {
-  SANTIAGO: ['PROVIDENCIA', 'ÑUÑOA'],
-  PROVIDENCIA: ['SANTIAGO', 'LAS CONDES'],
-  LAS_CONDES: ['PROVIDENCIA', 'VITACURA'],
 }
 
 export async function POST(req: Request) {
@@ -20,113 +14,76 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data: vehicle, error: vehicleError } = await supabase
+    const {
+      driver_name,
+      driver_phone,
+      plate,
+      vehicle_model,
+      capacity_total,
+      current_zone,
+      notes,
+    } = body
+
+    // 🧠 VALIDACIÓN BÁSICA
+    if (
+      !driver_name ||
+      !driver_phone ||
+      !plate ||
+      !capacity_total ||
+      !current_zone
+    ) {
+      return NextResponse.json(
+        { error: 'Faltan campos obligatorios' },
+        { status: 400 }
+      )
+    }
+
+    const totalCapacity = Number(capacity_total)
+
+    if (totalCapacity <= 0) {
+      return NextResponse.json(
+        { error: 'La capacidad total debe ser mayor a 0' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedZone = normalizeZone(current_zone)
+
+    const { data, error } = await supabase
       .from('vehicles')
       .insert([
         {
-          ...body,
-          current_zone: normalizeZone(body.current_zone),
+          driver_name,
+          driver_phone,
+          plate,
+          vehicle_model: vehicle_model || null,
+          capacity_total: totalCapacity,
+          capacity_available: totalCapacity,
+          current_zone: normalizedZone,
           status: 'disponible',
+          notes: notes || null,
         },
       ])
-      .select('*')
+      .select()
       .single()
 
-    if (vehicleError || !vehicle) {
-      console.error('ERROR INSERTANDO VEHICULO:', vehicleError)
+    if (error) {
+      console.error('ERROR INSERT VEHICLE:', error)
       return NextResponse.json(
-        { error: 'Error guardando vehículo' },
-        { status: 500 }
-      )
-    }
-
-    const { data: requests, error: requestsError } = await supabase
-      .from('transport_requests')
-      .select('*')
-      .in('status', ['pendiente', 'Pendiente'])
-
-    if (requestsError) {
-      console.error('ERROR CARGANDO SOLICITUDES:', requestsError)
-      return NextResponse.json(
-        { error: 'Error cargando solicitudes pendientes' },
-        { status: 500 }
-      )
-    }
-
-    const capacity = Number(vehicle.capacity_available)
-    const pendingRequests = requests || []
-
-    const sameZone = pendingRequests.find(
-      (r) =>
-        normalizeZone(r.pickup_zone) === normalizeZone(vehicle.current_zone) &&
-        Number(r.passenger_count) <= capacity
-    )
-
-    const nearZone = pendingRequests.find(
-      (r) =>
-        NEAR_ZONES[normalizeZone(vehicle.current_zone)]?.includes(
-          normalizeZone(r.pickup_zone)
-        ) && Number(r.passenger_count) <= capacity
-    )
-
-    const fallback = pendingRequests.find(
-      (r) => Number(r.passenger_count) <= capacity
-    )
-
-    const selected = sameZone || nearZone || fallback
-
-    if (!selected) {
-      return NextResponse.json({
-        success: true,
-        vehicle,
-        message: 'Vehículo guardado sin match',
-      })
-    }
-
-    const { error: requestUpdateError } = await supabase
-      .from('transport_requests')
-      .update({
-        status: 'asignado',
-        assigned_vehicle_id: vehicle.id,
-        assigned_at: new Date().toISOString(),
-      })
-      .eq('id', selected.id)
-
-    if (requestUpdateError) {
-      console.error('ERROR ACTUALIZANDO SOLICITUD:', requestUpdateError)
-      return NextResponse.json(
-        { error: 'Error asignando solicitud' },
-        { status: 500 }
-      )
-    }
-
-    const newCapacity = capacity - Number(selected.passenger_count)
-    const newVehicleStatus = newCapacity <= 0 ? 'completo' : 'disponible'
-
-    const { error: vehicleUpdateError } = await supabase
-      .from('vehicles')
-      .update({
-        capacity_available: newCapacity,
-        status: newVehicleStatus,
-      })
-      .eq('id', vehicle.id)
-
-    if (vehicleUpdateError) {
-      console.error('ERROR ACTUALIZANDO VEHICULO:', vehicleUpdateError)
-      return NextResponse.json(
-        { error: 'Error actualizando capacidad del vehículo' },
-        { status: 500 }
+        { error: error.message },
+        { status: 400 }
       )
     }
 
     return NextResponse.json({
       success: true,
-      assigned: selected.id,
-      vehicleId: vehicle.id,
-      remainingCapacity: newCapacity,
+      vehicle: data,
     })
-  } catch (e) {
-    console.error(e)
-    return NextResponse.json({ error: 'error' }, { status: 500 })
+  } catch (err) {
+    console.error('ERROR GENERAL:', err)
+    return NextResponse.json(
+      { error: 'Error interno' },
+      { status: 500 }
+    )
   }
 }
