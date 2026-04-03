@@ -2,6 +2,22 @@
 
 import { useState } from 'react'
 
+// 🔥 LISTA DE COMUNAS (puedes ampliar después)
+const COMUNAS = [
+  'SANTIAGO',
+  'LAS CONDES',
+  'PROVIDENCIA',
+  'ÑUÑOA',
+  'MAIPÚ',
+  'PUENTE ALTO',
+  'LA FLORIDA',
+  'SAN MIGUEL',
+  'RECOLETA',
+  'INDEPENDENCIA',
+  'QUILICURA',
+  'ESTACIÓN CENTRAL',
+]
+
 export default function Home() {
   const [form, setForm] = useState({
     full_name: '',
@@ -19,7 +35,9 @@ export default function Home() {
   const [message, setMessage] = useState('')
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target
 
@@ -37,9 +55,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/create-request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
 
@@ -61,6 +77,7 @@ export default function Home() {
         )
       }
 
+      // reset
       setForm({
         full_name: '',
         phone: '',
@@ -119,13 +136,20 @@ export default function Home() {
             required
           />
 
-          <input
+          <select
             name="pickup_zone"
-            placeholder="Comuna o zona"
             value={form.pickup_zone}
             onChange={handleChange}
             className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-          />
+            required
+          >
+            <option value="">Selecciona comuna</option>
+            {COMUNAS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
 
           <input
             name="destination_address"
