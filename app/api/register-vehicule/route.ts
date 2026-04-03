@@ -175,9 +175,12 @@ export async function POST(req: Request) {
       .single()
 
     if (insertVehicleError || !insertedVehicle) {
-      console.error(insertVehicleError)
+      console.error('ERROR INSERTANDO VEHICULO:', insertVehicleError)
       return NextResponse.json(
-        { error: 'Error guardando vehículo', details: insertVehicleError?.message },
+        {
+          error: 'Error guardando vehículo',
+          details: insertVehicleError?.message || 'Insert fallido',
+        },
         { status: 500 }
       )
     }
@@ -201,7 +204,7 @@ export async function POST(req: Request) {
         .order('created_at', { ascending: true })
 
     if (pendingRequestsError) {
-      console.error(pendingRequestsError)
+      console.error('ERROR CARGANDO PENDIENTES:', pendingRequestsError)
       return NextResponse.json(
         {
           success: true,
@@ -214,6 +217,26 @@ export async function POST(req: Request) {
     }
 
     const pendingRequests = (pendingRequestsData as PendingRequest[]) || []
+
+    console.log('VEHICULO NUEVO:', {
+      id: insertedVehicle.id,
+      driver: insertedVehicle.driver_name,
+      plate: insertedVehicle.plate,
+      zone: insertedVehicle.current_zone,
+      available,
+      status: insertedVehicle.status,
+    })
+
+    console.log(
+      'PENDIENTES ENCONTRADAS:',
+      pendingRequests.map((r) => ({
+        id: r.id,
+        full_name: r.full_name,
+        status: r.status,
+        pickup_zone: r.pickup_zone,
+        passenger_count: r.passenger_count,
+      }))
+    )
 
     const compatibleSameZone = pendingRequests.find((request) => {
       return (
@@ -228,6 +251,10 @@ export async function POST(req: Request) {
     })
 
     const selectedRequest = compatibleSameZone || compatibleFallback
+
+    console.log('COMPATIBLE MISMA ZONA:', compatibleSameZone)
+    console.log('COMPATIBLE FALLBACK:', compatibleFallback)
+    console.log('SOLICITUD SELECCIONADA:', selectedRequest)
 
     if (!selectedRequest) {
       return NextResponse.json({
@@ -255,7 +282,7 @@ export async function POST(req: Request) {
       .eq('id', selectedRequest.id)
 
     if (updateRequestError) {
-      console.error(updateRequestError)
+      console.error('ERROR ACTUALIZANDO SOLICITUD:', updateRequestError)
       return NextResponse.json(
         {
           success: true,
@@ -276,7 +303,7 @@ export async function POST(req: Request) {
       .eq('id', insertedVehicle.id)
 
     if (updateVehicleError) {
-      console.error(updateVehicleError)
+      console.error('ERROR ACTUALIZANDO VEHICULO:', updateVehicleError)
       return NextResponse.json(
         {
           success: true,
@@ -332,7 +359,7 @@ export async function POST(req: Request) {
         'Vehículo guardado y se asignó automáticamente una solicitud pendiente.',
     })
   } catch (error) {
-    console.error(error)
+    console.error('ERROR INTERNO REGISTER-VEHICLE:', error)
     return NextResponse.json(
       { error: 'Error interno registrando vehículo', details: String(error) },
       { status: 500 }
