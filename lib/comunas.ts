@@ -15,4 +15,4 @@ export const COMUNAS = [
     'RECOLETA',
     'INDEPENDENCIA',
     'QUILICURA',
-  ];
+  ]
