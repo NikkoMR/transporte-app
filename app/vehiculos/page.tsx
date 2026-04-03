@@ -114,8 +114,7 @@ export default function VehiculosPage() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Registro de vehículo</h1>
         <p className="text-slate-300 mb-8">
-          Registra un conductor y su vehículo disponible para asignación
-          automática.
+          Registra un conductor y su vehículo disponible para asignación automática.
         </p>
 
         <form
