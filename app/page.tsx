@@ -2,21 +2,7 @@
 
 import { useState } from 'react'
 
-// 🔥 LISTA DE COMUNAS (puedes ampliar después)
-const COMUNAS = [
-  'SANTIAGO',
-  'LAS CONDES',
-  'PROVIDENCIA',
-  'ÑUÑOA',
-  'MAIPÚ',
-  'PUENTE ALTO',
-  'LA FLORIDA',
-  'SAN MIGUEL',
-  'RECOLETA',
-  'INDEPENDENCIA',
-  'QUILICURA',
-  'ESTACIÓN CENTRAL',
-]
+import { COMUNAS } from './lib/comunas'
 
 export default function Home() {
   const [form, setForm] = useState({

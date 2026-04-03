@@ -2,24 +2,7 @@
 
 import { useState } from 'react'
 
-const COMUNAS = [
-  'SANTIAGO',
-  'PROVIDENCIA',
-  'LAS CONDES',
-  'ÑUÑOA',
-  'VITACURA',
-  'LO BARNECHEA',
-  'LA REINA',
-  'MACUL',
-  'SAN MIGUEL',
-  'LA FLORIDA',
-  'MAIPÚ',
-  'PUENTE ALTO',
-  'ESTACIÓN CENTRAL',
-  'RECOLETA',
-  'INDEPENDENCIA',
-  'QUILICURA',
-]
+import { COMUNAS } from '../lib/comunas'
 
 export default function VehiculosPage() {
   const [form, setForm] = useState({

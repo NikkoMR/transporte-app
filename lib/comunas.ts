@@ -1,0 +1,18 @@
+export const COMUNAS = [
+    'SANTIAGO',
+    'PROVIDENCIA',
+    'LAS CONDES',
+    'ÑUÑOA',
+    'VITACURA',
+    'LO BARNECHEA',
+    'LA REINA',
+    'MACUL',
+    'SAN MIGUEL',
+    'LA FLORIDA',
+    'MAIPÚ',
+    'PUENTE ALTO',
+    'ESTACIÓN CENTRAL',
+    'RECOLETA',
+    'INDEPENDENCIA',
+    'QUILICURA',
+  ];
