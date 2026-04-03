@@ -31,21 +31,24 @@ type TransportRequest = {
 
 const ZONE_PRIORITY: Record<string, number> = {
   PROVIDENCIA: 1,
-  ÑUÑOA: 2,
+  NUNOA: 2,
   SANTIAGO: 3,
-  LAS_CONDES: 4,
-  VITACURA: 5,
-  LO_BARNECHEA: 6,
-  LA_REINA: 7,
-  MACUL: 8,
-  SAN_MIGUEL: 9,
-  LA_FLORIDA: 10,
-  ESTACION_CENTRAL: 11,
-  RECOLETA: 12,
-  INDEPENDENCIA: 13,
-  QUILICURA: 14,
-  MAIPU: 15,
-  PUENTE_ALTO: 16,
+  SANTIAGO_CENTRO: 4,
+  LAS_CONDES: 5,
+  VITACURA: 6,
+  LO_BARNECHEA: 7,
+  LA_REINA: 8,
+  MACUL: 9,
+  SAN_MIGUEL: 10,
+  LA_FLORIDA: 11,
+  ESTACION_CENTRAL: 12,
+  RECOLETA: 13,
+  INDEPENDENCIA: 14,
+  QUILICURA: 15,
+  MAIPU: 16,
+  PUENTE_ALTO: 17,
+  QUILPUE: 18,
+  QUILLOTA: 19,
 }
 
 function normalizeZone(value: string | null | undefined) {
@@ -85,6 +88,27 @@ function sortSuggestedRoute(
   })
 }
 
+function buildGoogleMapsUrl(
+  vehicle: Vehicle,
+  suggestedRoute: TransportRequest[]
+) {
+  if (suggestedRoute.length === 0) return null
+
+  const origin = encodeURIComponent(
+    vehicle.current_zone || suggestedRoute[0].pickup_address
+  )
+
+  const destination = encodeURIComponent(
+    suggestedRoute[suggestedRoute.length - 1].destination_address
+  )
+
+  const waypoints = suggestedRoute
+    .map((r) => encodeURIComponent(r.pickup_address))
+    .join('|')
+
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`
+}
+
 export default async function ConductorPage({
   params,
 }: {
@@ -118,7 +142,7 @@ export default async function ConductorPage({
   if (requestsError) {
     return (
       <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-4">Panel del conductor</h1>
           <p className="text-red-400">Error cargando solicitudes asignadas.</p>
         </div>
@@ -132,6 +156,7 @@ export default async function ConductorPage({
     typedRequests,
     typedVehicle.current_zone
   )
+  const mapsUrl = buildGoogleMapsUrl(typedVehicle, suggestedRoute)
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
@@ -139,10 +164,10 @@ export default async function ConductorPage({
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h1 className="text-3xl font-bold mb-2">Panel del conductor</h1>
           <p className="text-slate-300 mb-6">
-            Vista de pasajeros asignados y ruta sugerida.
+            Vista de pasajeros asignados y ruta recomendada.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div className="bg-slate-800 rounded-xl p-4">
               <p className="text-slate-400">Conductor</p>
               <p className="font-semibold">{typedVehicle.driver_name}</p>
@@ -154,15 +179,15 @@ export default async function ConductorPage({
             </div>
 
             <div className="bg-slate-800 rounded-xl p-4">
+              <p className="text-slate-400">Patente</p>
+              <p className="font-semibold">{typedVehicle.plate}</p>
+            </div>
+
+            <div className="bg-slate-800 rounded-xl p-4">
               <p className="text-slate-400">Vehículo</p>
               <p className="font-semibold">
                 {typedVehicle.vehicle_model || 'No informado'}
               </p>
-            </div>
-
-            <div className="bg-slate-800 rounded-xl p-4">
-              <p className="text-slate-400">Patente</p>
-              <p className="font-semibold">{typedVehicle.plate}</p>
             </div>
 
             <div className="bg-slate-800 rounded-xl p-4">
@@ -180,11 +205,24 @@ export default async function ConductorPage({
         </section>
 
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Ruta sugerida</h2>
-            <span className="text-sm text-slate-300">
-              {suggestedRoute.length} pasajeros / paradas
-            </span>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">Ruta sugerida</h2>
+              <p className="text-slate-300 text-sm">
+                {suggestedRoute.length} pasajeros / paradas activas
+              </p>
+            </div>
+
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-500 transition px-4 py-3 rounded-lg font-semibold"
+              >
+                Abrir ruta en Google Maps
+              </a>
+            )}
           </div>
 
           {suggestedRoute.length === 0 ? (
@@ -196,44 +234,48 @@ export default async function ConductorPage({
               {suggestedRoute.map((request, index) => (
                 <div
                   key={request.id}
-                  className="bg-slate-800 border border-slate-700 rounded-xl p-4"
+                  className="bg-slate-800 border border-slate-700 rounded-xl p-5"
                 >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div>
-                      <p className="text-sm text-green-400 font-semibold">
+                      <p className="text-green-400 font-semibold text-sm mb-1">
                         Parada #{index + 1}
                       </p>
-                      <h3 className="text-lg font-bold">{request.full_name}</h3>
+                      <h3 className="text-xl font-bold">{request.full_name}</h3>
                       <p className="text-slate-300">{request.phone}</p>
                     </div>
 
-                    <div className="text-sm text-slate-300">
-                      <p>
-                        <span className="text-slate-400">Hora:</span>{' '}
-                        {request.requested_time}
-                      </p>
-                      <p>
-                        <span className="text-slate-400">Pasajeros:</span>{' '}
-                        {request.passenger_count}
-                      </p>
-                      <p>
-                        <span className="text-slate-400">Estado:</span>{' '}
-                        {request.status}
-                      </p>
+                    <div className="grid grid-cols-2 gap-3 text-sm min-w-[260px]">
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-slate-400">Hora</p>
+                        <p className="font-medium">{request.requested_time}</p>
+                      </div>
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-slate-400">Pasajeros</p>
+                        <p className="font-medium">{request.passenger_count}</p>
+                      </div>
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-slate-400">Estado</p>
+                        <p className="font-medium">{request.status}</p>
+                      </div>
+                      <div className="bg-slate-900 rounded-lg p-3">
+                        <p className="text-slate-400">Fecha</p>
+                        <p className="font-medium">{request.trip_date}</p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="bg-slate-900 rounded-lg p-3">
-                      <p className="text-slate-400">Recogida</p>
+                    <div className="bg-slate-900 rounded-lg p-4">
+                      <p className="text-slate-400 mb-1">Recogida</p>
                       <p className="font-medium">{request.pickup_address}</p>
                       <p className="text-slate-300">
                         Zona: {request.pickup_zone || 'Sin zona'}
                       </p>
                     </div>
 
-                    <div className="bg-slate-900 rounded-lg p-3">
-                      <p className="text-slate-400">Destino</p>
+                    <div className="bg-slate-900 rounded-lg p-4">
+                      <p className="text-slate-400 mb-1">Destino</p>
                       <p className="font-medium">
                         {request.destination_address}
                       </p>
@@ -241,8 +283,8 @@ export default async function ConductorPage({
                   </div>
 
                   {request.notes && (
-                    <div className="mt-3 text-sm">
-                      <p className="text-slate-400">Observaciones</p>
+                    <div className="mt-4 bg-slate-900 rounded-lg p-4 text-sm">
+                      <p className="text-slate-400 mb-1">Observaciones</p>
                       <p>{request.notes}</p>
                     </div>
                   )}
@@ -253,25 +295,34 @@ export default async function ConductorPage({
         </section>
 
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 className="text-2xl font-bold mb-4">Resumen de la ruta</h2>
+          <h2 className="text-2xl font-bold mb-4">Resumen recomendado</h2>
 
           {suggestedRoute.length === 0 ? (
             <p className="text-slate-300">Sin ruta sugerida por ahora.</p>
           ) : (
-            <ol className="list-decimal list-inside space-y-2 text-slate-200">
-              <li>
-                Salida desde zona actual:{' '}
-                {typedVehicle.current_zone || 'Sin zona'}
-              </li>
-              {suggestedRoute.map((request) => (
-                <li key={request.id}>
-                  Recoger a {request.full_name} en {request.pickup_address}
-                  {request.pickup_zone ? ` (${request.pickup_zone})` : ''}
-                  {' → '}
-                  destino: {request.destination_address}
-                </li>
+            <div className="space-y-3">
+              <div className="bg-slate-800 rounded-xl p-4">
+                <p className="text-slate-400 text-sm">Salida sugerida</p>
+                <p className="font-semibold">
+                  Desde {typedVehicle.current_zone || 'zona actual no definida'}
+                </p>
+              </div>
+
+              {suggestedRoute.map((request, index) => (
+                <div key={request.id} className="bg-slate-800 rounded-xl p-4">
+                  <p className="text-green-400 text-sm font-semibold">
+                    Paso {index + 1}
+                  </p>
+                  <p className="font-medium">
+                    Recoger a {request.full_name} en {request.pickup_address}
+                  </p>
+                  <p className="text-slate-300 text-sm">
+                    {request.pickup_zone ? `Zona: ${request.pickup_zone} · ` : ''}
+                    Destino: {request.destination_address}
+                  </p>
+                </div>
               ))}
-            </ol>
+            </div>
           )}
         </section>
       </div>
