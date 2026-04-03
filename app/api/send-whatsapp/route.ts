@@ -48,45 +48,87 @@ async function sendKapsoTemplate(params: {
     return
   }
 
-  const response = await fetch(
-    `https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages`,
-    {
+  try {
+    const response = await fetch(
+      `https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.KAPSO_API_KEY,
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanPhone(params.phone),
+          type: 'template',
+          template: {
+            name: 'transporte_asignado',
+            language: {
+              code: 'es_ES',
+            },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: params.name },
+                  { type: 'text', text: params.driver },
+                  { type: 'text', text: params.vehicle },
+                  { type: 'text', text: params.plate },
+                  { type: 'text', text: params.trackingUrl },
+                ],
+              },
+            ],
+          },
+        }),
+      }
+    )
+
+    const data = await response.json()
+    console.log('KAPSO TEMPLATE RESULT:', data)
+
+    if (!response.ok) {
+      console.error('KAPSO TEMPLATE ERROR:', data)
+    }
+  } catch (error) {
+    console.error('KAPSO TEMPLATE EXCEPTION:', error)
+  }
+}
+
+async function sendInternalWhatsApp(params: {
+  origin: string
+  phone: string
+  name: string
+  driver: string
+  vehicle: string
+  plate: string
+  trackingUrl: string
+}) {
+  try {
+    const whatsappResponse = await fetch(`${params.origin}/api/send-whatsapp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.KAPSO_API_KEY,
       },
       body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: cleanPhone(params.phone),
-        type: 'template',
-        template: {
-          name: 'transporte_asignado',
-          language: {
-            code: 'es_ES',
-          },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: params.name },
-                { type: 'text', text: params.driver },
-                { type: 'text', text: params.vehicle },
-                { type: 'text', text: params.plate },
-                { type: 'text', text: params.trackingUrl },
-              ],
-            },
-          ],
-        },
+        phone: params.phone,
+        name: params.name,
+        driver: params.driver,
+        vehicle: params.vehicle,
+        plate: params.plate,
+        trackingUrl: params.trackingUrl,
       }),
+    })
+
+    const whatsappResult = await whatsappResponse.json()
+
+    if (!whatsappResponse.ok) {
+      console.error('AUTO WHATSAPP ERROR RESPONSE:', whatsappResult)
+      return
     }
-  )
 
-  const data = await response.json()
-  console.log('KAPSO TEMPLATE RESULT:', data)
-
-  if (!response.ok) {
-    console.error('KAPSO TEMPLATE ERROR:', data)
+    console.log('AUTO WHATSAPP RESULT:', whatsappResult)
+  } catch (whatsappError) {
+    console.error('AUTO WHATSAPP ERROR:', whatsappError)
   }
 }
 
@@ -165,7 +207,7 @@ export async function POST(req: Request) {
     }
 
     const vehicles = ((vehiclesData as Vehicle[]) || []).filter(
-      (v) => v.capacity_available >= body.passenger_count
+      (v) => v.capacity_available >= Number(body.passenger_count)
     )
 
     const zone = normalizeZone(body.pickup_zone)
@@ -175,7 +217,7 @@ export async function POST(req: Request) {
     )
 
     const fallbackVehicle = vehicles.find(
-      (v) => v.capacity_available >= body.passenger_count
+      (v) => v.capacity_available >= Number(body.passenger_count)
     )
 
     const selectedVehicle = sameZoneVehicle || fallbackVehicle
@@ -184,6 +226,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         assigned: false,
+        requestId: insertedRequest.id,
         message: 'Solicitud creada. Quedó pendiente por falta de vehículos.',
       })
     }
@@ -221,7 +264,10 @@ export async function POST(req: Request) {
     if (updateVehicleError) {
       console.error(updateVehicleError)
       return NextResponse.json(
-        { error: 'La solicitud se asignó, pero no se pudo actualizar el vehículo' },
+        {
+          error:
+            'La solicitud se asignó, pero no se pudo actualizar el vehículo',
+        },
         { status: 500 }
       )
     }
@@ -239,6 +285,16 @@ export async function POST(req: Request) {
     const trackingUrl = `${origin}/tracking/${insertedRequest.id}`
 
     await sendKapsoTemplate({
+      phone: body.phone,
+      name: body.full_name,
+      driver: selectedVehicle.driver_name,
+      vehicle: selectedVehicle.vehicle_model || 'No informado',
+      plate: selectedVehicle.plate,
+      trackingUrl,
+    })
+
+    await sendInternalWhatsApp({
+      origin,
       phone: body.phone,
       name: body.full_name,
       driver: selectedVehicle.driver_name,
