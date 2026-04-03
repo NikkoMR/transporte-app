@@ -44,8 +44,7 @@ async function sendKapsoTemplate(params: {
   trackingUrl: string
 }) {
   if (!process.env.KAPSO_API_KEY || !process.env.KAPSO_PHONE_ID) {
-    console.error('Faltan KAPSO_API_KEY o KAPSO_PHONE_ID')
-    return
+    throw new Error('Faltan KAPSO_API_KEY o KAPSO_PHONE_ID')
   }
 
   const response = await fetch(
@@ -89,6 +88,7 @@ async function sendKapsoTemplate(params: {
 
   if (!response.ok) {
     console.error('KAPSO TEMPLATE ERROR:', data)
+    throw new Error(`Error enviando template a Kapso: ${response.status}`)
   }
 }
 
@@ -237,17 +237,25 @@ export async function POST(req: Request) {
       },
     ])
 
-    const origin = new URL(req.url).origin
-    const trackingUrl = `https://transporte-app-steel.vercel.app/tracking/${insertedRequest.id}`
-    
-    await sendKapsoTemplate({
-      phone: body.phone,
-      name: body.full_name,
-      driver: selectedVehicle.driver_name,
-      vehicle: selectedVehicle.vehicle_model || 'No informado',
-      plate: selectedVehicle.plate,
-      trackingUrl,
-    })
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin
+
+    const trackingUrl = `${baseUrl}/tracking/${insertedRequest.id}`
+
+    console.log('TRACKING URL GENERADO:', trackingUrl)
+
+    try {
+      await sendKapsoTemplate({
+        phone: body.phone,
+        name: body.full_name,
+        driver: selectedVehicle.driver_name,
+        vehicle: selectedVehicle.vehicle_model || 'No informado',
+        plate: selectedVehicle.plate,
+        trackingUrl,
+      })
+    } catch (whatsappError) {
+      console.error('AUTO WHATSAPP ERROR:', whatsappError)
+    }
 
     return NextResponse.json({
       success: true,
