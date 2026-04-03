@@ -37,9 +37,7 @@ export default function VehiculosPage() {
   const [message, setMessage] = useState('')
 
   function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target
 
@@ -85,6 +83,11 @@ export default function VehiculosPage() {
       }
 
       setMessage('Vehículo registrado correctamente ✅')
+
+      if (result?.vehicle?.id) {
+        window.location.href = /conductor/${result.vehicle.id}
+        return
+      }
 
       setForm({
         driver_name: '',
