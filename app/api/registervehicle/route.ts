@@ -22,12 +22,12 @@ async function sendKapsoTemplate(params: {
   }
 
   const response = await fetch(
-    https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages,
+    `https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.KAPSO_API_KEY,
+        'X-API-Key': process.env.KAPSO_API_KEY!,
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
@@ -62,7 +62,7 @@ async function sendKapsoTemplate(params: {
 
   if (!response.ok) {
     console.error('KAPSO REGISTER VEHICLE ERROR:', data)
-    throw new Error(Kapso devolvió ${response.status})
+    throw new Error(`Kapso devolvió ${response.status}`)
   }
 }
 
@@ -109,7 +109,6 @@ export async function POST(req: Request) {
 
     const normalizedZone = normalizeZone(current_zone)
 
-    // 1. Crear vehículo
     const { data: vehicle, error: insertVehicleError } = await supabase
       .from('vehicles')
       .insert([
@@ -136,7 +135,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // 2. Buscar solicitud pendiente compatible
     const { data: pendingRequest, error: pendingRequestError } = await supabase
       .from('transport_requests')
       .select('*')
@@ -158,7 +156,6 @@ export async function POST(req: Request) {
       })
     }
 
-    // 3. Si no hay pendiente, terminar normal
     if (!pendingRequest) {
       return NextResponse.json({
         success: true,
@@ -172,7 +169,6 @@ export async function POST(req: Request) {
     const newCapacity = totalCapacity - passengerCount
     const newVehicleStatus = newCapacity > 0 ? 'disponible' : 'completo'
 
-    // 4. Actualizar vehículo
     const { error: updateVehicleError } = await supabase
       .from('vehicles')
       .update({
@@ -192,7 +188,6 @@ export async function POST(req: Request) {
       })
     }
 
-    // 5. Actualizar solicitud pendiente
     const { error: updateRequestError } = await supabase
       .from('transport_requests')
       .update({
@@ -212,13 +207,11 @@ export async function POST(req: Request) {
       })
     }
 
-    // 6. Tracking URL
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin
 
-    const trackingUrl = ${baseUrl}/tracking/${pendingRequest.id}
+    const trackingUrl = `${baseUrl}/tracking/${pendingRequest.id}`
 
-    // 7. WhatsApp al pasajero
     try {
       await sendKapsoTemplate({
         phone: pendingRequest.phone,
@@ -229,10 +222,7 @@ export async function POST(req: Request) {
         trackingUrl,
       })
     } catch (whatsappError) {
-      console.error(
-        'WHATSAPP ERROR FROM REGISTER VEHICLE:',
-        whatsappError
-      )
+      console.error('WHATSAPP ERROR FROM REGISTER VEHICLE:', whatsappError)
     }
 
     return NextResponse.json({

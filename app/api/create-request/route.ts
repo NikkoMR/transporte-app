@@ -27,12 +27,12 @@ async function sendKapsoTemplate(params: {
   }
 
   const response = await fetch(
-    https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages,
+    `https://api.kapso.ai/meta/whatsapp/v24.0/${process.env.KAPSO_PHONE_ID}/messages`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.KAPSO_API_KEY,
+        'X-API-Key': process.env.KAPSO_API_KEY!,
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
@@ -67,7 +67,7 @@ async function sendKapsoTemplate(params: {
 
   if (!response.ok) {
     console.error('KAPSO TEMPLATE ERROR:', data)
-    throw new Error(Kapso devolvió ${response.status})
+    throw new Error(`Kapso devolvió ${response.status}`)
   }
 }
 
@@ -114,13 +114,12 @@ export async function POST(req: Request) {
 
     const normalizedPickupZone = normalizeZone(pickup_zone)
 
-    // 1. Buscar vehículo disponible por zona
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .select('*')
       .eq('status', 'disponible')
       .gte('capacity_available', passengerCount)
-      .ilike('current_zone', %${normalizedPickupZone}%)
+      .ilike('current_zone', `%${normalizedPickupZone}%`)
       .limit(1)
       .maybeSingle()
 
@@ -159,7 +158,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Insertar solicitud y devolver registro creado
     const { data: insertedRequest, error } = await supabase
       .from('transport_requests')
       .insert([
@@ -182,15 +180,17 @@ export async function POST(req: Request) {
 
     if (error || !insertedRequest) {
       console.error(error)
-      return NextResponse.json({ error: error?.message || 'Error insertando solicitud' }, { status: 400 })
+      return NextResponse.json(
+        { error: error?.message || 'Error insertando solicitud' },
+        { status: 400 }
+      )
     }
 
-    // 3. Si fue asignado, mandar WhatsApp
     if (vehicle && assigned_vehicle_id) {
       const baseUrl =
         process.env.NEXT_PUBLIC_BASE_URL || new URL(req.url).origin
 
-      const trackingUrl = ${baseUrl}/tracking/${insertedRequest.id}
+      const trackingUrl = `${baseUrl}/tracking/${insertedRequest.id}`
 
       try {
         await sendKapsoTemplate({
@@ -221,9 +221,6 @@ export async function POST(req: Request) {
     })
   } catch (err) {
     console.error(err)
-    return NextResponse.json(
-      { error: 'Error interno' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
