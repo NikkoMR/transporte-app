@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { COMUNAS } from '../lib/comunas'
+import { COMUNAS } from '../../lib/comunas'
 
 export default function VehiculosPage() {
   const [form, setForm] = useState({
