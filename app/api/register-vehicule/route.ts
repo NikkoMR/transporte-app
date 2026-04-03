@@ -97,13 +97,22 @@ async function sendKapsoTemplate(params: {
 
   const data = await response.json()
 
-  console.log('AUTO VEHICLE -> KAPSO STATUS:', response.status)
-  console.log('AUTO VEHICLE -> KAPSO RESULT:', data)
+  console.log('REGISTER-VEHICLE -> KAPSO STATUS:', response.status)
+  console.log('REGISTER-VEHICLE -> KAPSO RESULT:', data)
 
   if (!response.ok) {
-    console.error('AUTO VEHICLE -> KAPSO ERROR:', data)
-    throw new Error(`Error enviando template a Kapso: ${response.status}`)
+    console.error('REGISTER-VEHICLE -> KAPSO ERROR:', data)
+    throw new Error(`Kapso devolvió ${response.status}`)
   }
+}
+
+// Para probar en navegador que la ruta existe
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    route: '/api/register-vehicle',
+    message: 'Ruta register-vehicle operativa',
+  })
 }
 
 export async function POST(req: Request) {
@@ -124,10 +133,13 @@ export async function POST(req: Request) {
       )
     }
 
+    const capacityTotal = Number(body.capacity_total)
+    const capacityAvailable = Number(body.capacity_available)
+
     if (
-      Number(body.capacity_total) <= 0 ||
-      Number(body.capacity_available) < 0 ||
-      Number(body.capacity_available) > Number(body.capacity_total)
+      capacityTotal <= 0 ||
+      capacityAvailable < 0 ||
+      capacityAvailable > capacityTotal
     ) {
       return NextResponse.json(
         { error: 'Los cupos no son válidos' },
@@ -150,10 +162,7 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    const normalizedZone = body.current_zone?.trim() || null
-    const total = Number(body.capacity_total)
-    const available = Number(body.capacity_available)
-    const vehicleStatus = available <= 0 ? 'completo' : 'disponible'
+    const vehicleStatus = capacityAvailable <= 0 ? 'completo' : 'disponible'
 
     const { data: insertedVehicle, error: insertVehicleError } = await supabase
       .from('vehicles')
@@ -163,9 +172,9 @@ export async function POST(req: Request) {
           driver_phone: body.driver_phone,
           plate: body.plate,
           vehicle_model: body.vehicle_model || null,
-          capacity_total: total,
-          capacity_available: available,
-          current_zone: normalizedZone,
+          capacity_total: capacityTotal,
+          capacity_available: capacityAvailable,
+          current_zone: body.current_zone?.trim() || null,
           available_from: body.available_from || null,
           status: vehicleStatus,
           notes: body.notes || null,
@@ -185,7 +194,8 @@ export async function POST(req: Request) {
       )
     }
 
-    if (available <= 0) {
+    // Si quedó sin cupos, solo guardamos
+    if (capacityAvailable <= 0) {
       return NextResponse.json({
         success: true,
         vehicle: insertedVehicle,
@@ -223,8 +233,7 @@ export async function POST(req: Request) {
       driver: insertedVehicle.driver_name,
       plate: insertedVehicle.plate,
       zone: insertedVehicle.current_zone,
-      available,
-      status: insertedVehicle.status,
+      capacityAvailable,
     })
 
     console.log(
@@ -232,22 +241,22 @@ export async function POST(req: Request) {
       pendingRequests.map((r) => ({
         id: r.id,
         full_name: r.full_name,
-        status: r.status,
         pickup_zone: r.pickup_zone,
         passenger_count: r.passenger_count,
+        status: r.status,
       }))
     )
 
     const compatibleSameZone = pendingRequests.find((request) => {
       return (
-        Number(request.passenger_count) <= available &&
+        Number(request.passenger_count) <= capacityAvailable &&
         normalizeZone(request.pickup_zone) ===
           normalizeZone(insertedVehicle.current_zone)
       )
     })
 
     const compatibleFallback = pendingRequests.find((request) => {
-      return Number(request.passenger_count) <= available
+      return Number(request.passenger_count) <= capacityAvailable
     })
 
     const selectedRequest = compatibleSameZone || compatibleFallback
@@ -269,7 +278,7 @@ export async function POST(req: Request) {
       Number(insertedVehicle.capacity_available) -
       Number(selectedRequest.passenger_count)
 
-    const newVehicleStatusAfterAssign =
+    const newVehicleStatus =
       newCapacityAvailable <= 0 ? 'completo' : 'disponible'
 
     const { error: updateRequestError } = await supabase
@@ -288,7 +297,8 @@ export async function POST(req: Request) {
           success: true,
           vehicle: insertedVehicle,
           assignedRequest: null,
-          message: 'Vehículo guardado, pero no se pudo asignar la solicitud pendiente.',
+          message:
+            'Vehículo guardado, pero no se pudo asignar la solicitud pendiente.',
         },
         { status: 200 }
       )
@@ -298,7 +308,7 @@ export async function POST(req: Request) {
       .from('vehicles')
       .update({
         capacity_available: newCapacityAvailable,
-        status: newVehicleStatusAfterAssign,
+        status: newVehicleStatus,
       })
       .eq('id', insertedVehicle.id)
 
@@ -309,7 +319,8 @@ export async function POST(req: Request) {
           success: true,
           vehicle: insertedVehicle,
           assignedRequest: selectedRequest,
-          message: 'Se asignó la solicitud, pero falló la actualización de cupos.',
+          message:
+            'Se asignó la solicitud, pero falló la actualización de cupos.',
         },
         { status: 200 }
       )
@@ -347,7 +358,7 @@ export async function POST(req: Request) {
     const finalVehicle: Vehicle = {
       ...insertedVehicle,
       capacity_available: newCapacityAvailable,
-      status: newVehicleStatusAfterAssign,
+      status: newVehicleStatus,
     }
 
     return NextResponse.json({
@@ -360,6 +371,7 @@ export async function POST(req: Request) {
     })
   } catch (error) {
     console.error('ERROR INTERNO REGISTER-VEHICLE:', error)
+
     return NextResponse.json(
       { error: 'Error interno registrando vehículo', details: String(error) },
       { status: 500 }
