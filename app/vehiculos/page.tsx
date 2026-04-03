@@ -2,6 +2,27 @@
 
 import { useState } from 'react'
 
+const COMUNAS = [
+  'SANTIAGO',
+  'LAS CONDES',
+  'VITACURA',
+  'LO BARNECHEA',
+  'PROVIDENCIA',
+  'MAIPÚ',
+  'PUENTE ALTO',
+  'LA FLORIDA',
+  'ÑUÑOA',
+  'SAN MIGUEL',
+  'LA CISTERNA',
+  'QUILICURA',
+  'RENCA',
+  'INDEPENDENCIA',
+  'RECOLETA',
+  'ESTACIÓN CENTRAL',
+  'QUINTA NORMAL',
+  'CERRO NAVIA',
+]
+
 export default function VehiculosPage() {
   const [form, setForm] = useState({
     driver_name: '',
@@ -19,14 +40,13 @@ export default function VehiculosPage() {
   const [message, setMessage] = useState('')
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target
 
     setForm((prev) => {
       const next = { ...prev, [name]: value }
 
-      // Auto llenar disponibles cuando se escribe total
       if (name === 'capacity_total' && !prev.capacity_available) {
         next.capacity_available = value
       }
@@ -41,170 +61,129 @@ export default function VehiculosPage() {
     setMessage('')
 
     try {
-      const response = await fetch('/api/registervehicle', {
+      const res = await fetch('/api/registervehicle', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          driver_name: form.driver_name,
-          driver_phone: form.driver_phone,
-          plate: form.plate,
-          vehicle_model: form.vehicle_model,
+          ...form,
           capacity_total: Number(form.capacity_total),
           capacity_available: Number(form.capacity_available),
-          current_zone: form.current_zone,
-          available_from: form.available_from,
-          notes: form.notes,
         }),
       })
 
-      const result = await response.json()
+      let data
 
-      if (!response.ok) {
-        setMessage(
-          result?.details
-            ? `Error: ${result.details}`
-            : result?.error || 'Error guardando vehículo'
-        )
+      try {
+        data = await res.json()
+      } catch {
+        const text = await res.text()
+        console.error(text)
+        setMessage('Error servidor (no JSON)')
         return
       }
 
-      if (result.assignedRequest) {
-        setMessage(
-          `🚀 Vehículo guardado y se asignó automáticamente la solicitud de ${result.assignedRequest.full_name}`
-        )
+      if (!res.ok) {
+        setMessage(data.error || 'Error')
       } else {
-        setMessage(result.message || 'Vehículo guardado correctamente')
+        setMessage(data.message || 'OK')
+        setForm({
+          driver_name: '',
+          driver_phone: '',
+          plate: '',
+          vehicle_model: '',
+          capacity_total: '',
+          capacity_available: '',
+          current_zone: '',
+          available_from: '',
+          notes: '',
+        })
       }
-
-      setForm({
-        driver_name: '',
-        driver_phone: '',
-        plate: '',
-        vehicle_model: '',
-        capacity_total: '',
-        capacity_available: '',
-        current_zone: '',
-        available_from: '',
-        notes: '',
-      })
-    } catch (error: any) {
-      console.error(error)
-      setMessage(`Error: ${error?.message || 'Load failed'}`)
+    } catch (err: any) {
+      setMessage(err.message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Registro de vehículo</h1>
-        <p className="text-slate-300 mb-8">
-          Registra un conductor y su vehículo disponible.
-        </p>
+    <main className="min-h-screen bg-slate-950 text-white p-10">
+      <h1 className="text-3xl font-bold mb-6">Registro de vehículo</h1>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 bg-slate-900 p-6 rounded-2xl border border-slate-800"
+      <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
+        <input
+          name="driver_name"
+          placeholder="Nombre"
+          value={form.driver_name}
+          onChange={handleChange}
+          required
+          className="input"
+        />
+
+        <input
+          name="driver_phone"
+          placeholder="Teléfono"
+          value={form.driver_phone}
+          onChange={handleChange}
+          required
+          className="input"
+        />
+
+        <input
+          name="plate"
+          placeholder="Patente"
+          value={form.plate}
+          onChange={handleChange}
+          required
+          className="input"
+        />
+
+        <input
+          name="vehicle_model"
+          placeholder="Vehículo"
+          value={form.vehicle_model}
+          onChange={handleChange}
+          className="input"
+        />
+
+        <div className="flex gap-2">
+          <input
+            name="capacity_total"
+            placeholder="Total"
+            value={form.capacity_total}
+            onChange={handleChange}
+            className="input"
+          />
+
+          <input
+            name="capacity_available"
+            placeholder="Disponible"
+            value={form.capacity_available}
+            onChange={handleChange}
+            className="input"
+          />
+        </div>
+
+        <select
+          name="current_zone"
+          value={form.current_zone}
+          onChange={handleChange}
+          className="input"
+          required
         >
-          <input
-            name="driver_name"
-            placeholder="Nombre del conductor"
-            value={form.driver_name}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-            required
-          />
+          <option value="">Selecciona comuna</option>
+          {COMUNAS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
 
-          <input
-            name="driver_phone"
-            placeholder="Teléfono del conductor"
-            value={form.driver_phone}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-            required
-          />
+        <button disabled={loading} className="bg-green-500 px-4 py-2 rounded">
+          {loading ? 'Guardando...' : 'Registrar vehículo'}
+        </button>
 
-          <input
-            name="plate"
-            placeholder="Patente"
-            value={form.plate}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-            required
-          />
-
-          <input
-            name="vehicle_model"
-            placeholder="Modelo del vehículo (ej: Toyota Hilux)"
-            value={form.vehicle_model}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              name="capacity_total"
-              type="number"
-              min="1"
-              placeholder="Asientos totales"
-              value={form.capacity_total}
-              onChange={handleChange}
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-              required
-            />
-
-            <input
-              name="capacity_available"
-              type="number"
-              min="0"
-              placeholder="Asientos disponibles"
-              value={form.capacity_available}
-              onChange={handleChange}
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-              required
-            />
-          </div>
-
-          <input
-            name="current_zone"
-            placeholder="Zona / Comuna (ej: Quilpué)"
-            value={form.current_zone}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-          />
-
-          <input
-            name="available_from"
-            type="time"
-            value={form.available_from}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3"
-          />
-
-          <textarea
-            name="notes"
-            placeholder="Observaciones"
-            value={form.notes}
-            onChange={handleChange}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 min-h-28"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-blue-600 hover:bg-blue-500 transition px-4 py-3 font-semibold disabled:opacity-60"
-          >
-            {loading ? 'Guardando...' : 'Registrar vehículo'}
-          </button>
-
-          {message && (
-            <p className="text-sm text-slate-200 pt-2">{message}</p>
-          )}
-        </form>
-      </div>
+        {message && <p>{message}</p>}
+      </form>
     </main>
   )
 }
