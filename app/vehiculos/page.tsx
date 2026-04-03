@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-
 import { COMUNAS } from '../lib/comunas'
 
 export default function VehiculosPage() {

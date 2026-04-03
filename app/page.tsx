@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-
 import { COMUNAS } from './lib/comunas'
 
 export default function Home() {
@@ -63,7 +62,6 @@ export default function Home() {
         )
       }
 
-      // reset
       setForm({
         full_name: '',
         phone: '',
