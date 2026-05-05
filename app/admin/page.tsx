@@ -1,568 +1,372 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 type TransportRequest = {
-  id: string
-  full_name: string
-  phone: string
-  pickup_address: string
-  pickup_zone: string | null
-  destination_address: string
-  trip_date: string
-  requested_time: string
-  passenger_count: number
-  notes: string | null
-  status: string
-  assigned_vehicle_id?: string | null
-  assigned_at?: string | null
-  picked_up_at?: string | null
-  completed_at?: string | null
-}
+  id: string;
+  full_name: string;
+  phone: string;
+  pickup_address: string;
+  pickup_zone: string;
+  destination_address: string;
+  trip_date: string;
+  requested_time: string;
+  passenger_count: number;
+  notes: string | null;
+  status: string;
+  assigned_driver_id: string | null;
+  created_at?: string;
+};
 
-type Vehicle = {
-  id: string
-  driver_name: string
-  driver_phone: string
-  plate: string
-  vehicle_model: string | null
-  capacity_total: number
-  capacity_available: number
-  current_zone: string | null
-  available_from: string | null
-  status: string
-  notes: string | null
-}
+type Driver = {
+  id: string;
+  user_id: string;
+  nombre: string;
+  telefono: string;
+  patente: string | null;
+  capacidad: number;
+  comuna_base: string | null;
+  activo: boolean;
+  disponible: boolean;
+  vehicle_model?: string | null;
+  vehicle_color?: string | null;
+};
 
-function normalizeZone(value: string | null | undefined) {
-  return (value || '').trim().toLowerCase()
-}
+export default function AdminPage() {
+  const router = useRouter();
 
-function getRecommendedVehicles(
-  request: TransportRequest,
-  vehicles: Vehicle[]
-): Vehicle[] {
-  const requestZone = normalizeZone(request.pickup_zone)
-
-  const validVehicles = vehicles.filter(
-    (vehicle) =>
-      vehicle.status === 'disponible' &&
-      vehicle.capacity_available >= request.passenger_count
-  )
-
-  return validVehicles.sort((a, b) => {
-    const aSameZone = normalizeZone(a.current_zone) === requestZone ? 1 : 0
-    const bSameZone = normalizeZone(b.current_zone) === requestZone ? 1 : 0
-
-    if (aSameZone !== bSameZone) {
-      return bSameZone - aSameZone
-    }
-
-    return b.capacity_available - a.capacity_available
-  })
-}
-
-export default function OperacionPage() {
-  const [requests, setRequests] = useState<TransportRequest[]>([])
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [assigningId, setAssigningId] = useState<string | null>(null)
-
-  async function loadData() {
-    setLoading(true)
-
-    const [
-      { data: requestsData, error: requestsError },
-      { data: vehiclesData, error: vehiclesError },
-    ] = await Promise.all([
-      supabase
-        .from('transport_requests')
-        .select('*')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('vehicles')
-        .select('*')
-        .order('created_at', { ascending: false }),
-    ])
-
-    if (requestsError) {
-      console.error('Error cargando solicitudes:', requestsError)
-    }
-
-    if (vehiclesError) {
-      console.error('Error cargando vehículos:', vehiclesError)
-    }
-
-    setRequests((requestsData as TransportRequest[]) || [])
-    setVehicles((vehiclesData as Vehicle[]) || [])
-    setLoading(false)
-  }
+  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<TransportRequest[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    loadData()
-  }, [])
+    async function cargarAdmin() {
+      setLoading(true);
+      setMensaje("");
 
-  async function assignVehicle(
-    requestId: string,
-    vehicle: Vehicle,
-    passengers: number
-  ) {
-    if (vehicle.capacity_available < passengers) {
-      alert('Ese vehículo ya no tiene cupos suficientes.')
-      return
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userData.user.id)
+        .single();
+
+      if (profileError || profile?.role !== "admin") {
+        router.push("/dashboard");
+        return;
+      }
+
+      const { data: requestsData, error: requestsError } = await supabase
+        .from("transport_requests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (requestsError) {
+        console.error(requestsError);
+        setMensaje(
+          "No se pudieron cargar las solicitudes. Revisa permisos RLS de transport_requests."
+        );
+      } else {
+        setRequests((requestsData || []) as TransportRequest[]);
+      }
+
+      const { data: driversData, error: driversError } = await supabase
+        .from("drivers")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (driversError) {
+        console.error(driversError);
+        setMensaje(
+          "No se pudieron cargar los choferes. Revisa permisos RLS de drivers."
+        );
+      } else {
+        setDrivers((driversData || []) as Driver[]);
+      }
+
+      setLoading(false);
     }
 
-    setAssigningId(`${requestId}-${vehicle.id}`)
+    cargarAdmin();
+  }, [router]);
 
-    const newCapacity = vehicle.capacity_available - passengers
-    const newStatus = newCapacity === 0 ? 'completo' : 'disponible'
+  const stats = useMemo(() => {
+    const total = requests.length;
+    const pendientes = requests.filter((r) => r.status === "pendiente").length;
+    const asignadas = requests.filter((r) => r.status === "asignado").length;
+    const finalizadas = requests.filter((r) => r.status === "finalizado").length;
+    const disponibles = drivers.filter((d) => d.disponible && d.activo).length;
 
-    const { error: requestError } = await supabase
-      .from('transport_requests')
-      .update({
-        status: 'asignado',
-        assigned_vehicle_id: vehicle.id,
-        assigned_at: new Date().toISOString(),
-      })
-      .eq('id', requestId)
+    return {
+      total,
+      pendientes,
+      asignadas,
+      finalizadas,
+      disponibles,
+    };
+  }, [requests, drivers]);
 
-    if (requestError) {
-      console.error('Error asignando solicitud:', requestError)
-      alert('No se pudo asignar la solicitud.')
-      setAssigningId(null)
-      return
-    }
+  function getDriverName(driverId: string | null) {
+    if (!driverId) return "Sin asignar";
 
-    const { error: vehicleError } = await supabase
-      .from('vehicles')
-      .update({
-        capacity_available: newCapacity,
-        status: newStatus,
-      })
-      .eq('id', vehicle.id)
-
-    if (vehicleError) {
-      console.error('Error actualizando vehículo:', vehicleError)
-      alert('La solicitud se asignó, pero falló la actualización del vehículo.')
-      setAssigningId(null)
-      await loadData()
-      return
-    }
-
-    await supabase.from('trip_events').insert([
-      {
-        request_id: requestId,
-        vehicle_id: vehicle.id,
-        event_type: 'asignado',
-        event_note: `Solicitud asignada a ${vehicle.driver_name} (${vehicle.plate})`,
-      },
-    ])
-
-    setAssigningId(null)
-    await loadData()
+    const driver = drivers.find((d) => d.id === driverId);
+    return driver ? driver.nombre : "Chofer no encontrado";
   }
 
-  async function updateTripStatus(
-    request: TransportRequest,
-    nextStatus: string
-  ) {
-    const updateData: Record<string, string> = {
-      status: nextStatus,
-    }
-
-    if (nextStatus === 'a_bordo') {
-      updateData.picked_up_at = new Date().toISOString()
-    }
-
-    if (nextStatus === 'completado') {
-      updateData.completed_at = new Date().toISOString()
-    }
-
-    const { error } = await supabase
-      .from('transport_requests')
-      .update(updateData)
-      .eq('id', request.id)
-
-    if (error) {
-      console.error('Error actualizando estado:', error)
-      alert('No se pudo actualizar el estado.')
-      return
-    }
-
-    await supabase.from('trip_events').insert([
-      {
-        request_id: request.id,
-        vehicle_id: request.assigned_vehicle_id || null,
-        event_type: nextStatus,
-        event_note: `Cambio de estado a ${nextStatus}`,
-      },
-    ])
-
-    await loadData()
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#07111f] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto rounded-full border-2 border-white/10 border-t-yellow-300 animate-spin mb-4" />
+          <p className="text-slate-300">Cargando panel admin...</p>
+        </div>
+      </main>
+    );
   }
-
-  function openWhatsAppForRequest(
-    request: TransportRequest,
-    vehicle?: Vehicle
-  ) {
-    const phone = request.phone.replace(/\D/g, '')
-
-    const driverName = vehicle?.driver_name || 'Tu conductor'
-    const plate = vehicle?.plate || 'Patente no informada'
-    const vehicleModel = vehicle?.vehicle_model || 'Vehículo no informado'
-
-    const message =
-      `Hola ${request.full_name}, tu transporte ya fue asignado 🚗\n\n` +
-      `Conductor: ${driverName}\n` +
-      `Vehículo: ${vehicleModel}\n` +
-      `Patente: ${plate}\n` +
-      `Recogida: ${request.pickup_address}\n` +
-      `Destino: ${request.destination_address}\n\n` +
-      `Pronto irá en camino.`
-
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    window.open(url, '_blank')
-  }
-
-  const activeRequests = requests.filter((request) =>
-    ['pendiente', 'asignado', 'en_camino', 'llego', 'a_bordo'].includes(
-      request.status
-    )
-  )
-
-  const availableVehicles = vehicles.filter(
-    (vehicle) => vehicle.status === 'disponible'
-  )
-
-  const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-6 py-10">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Panel operativo</h1>
-        <p className="text-slate-300 mb-8">
-          Vista general de solicitudes activas y vehículos disponibles.
-        </p>
+    <main className="min-h-screen bg-[#07111f] text-white relative overflow-hidden">
+      {/* Fondo estilo festival */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-20 -left-16 w-72 h-72 rounded-[40%] bg-[#8b5cf6] opacity-70 blur-[2px]" />
+        <div className="absolute -top-12 left-36 w-80 h-44 rounded-[45%] bg-[#06b6d4] opacity-60 blur-[2px]" />
+        <div className="absolute -top-10 right-0 w-80 h-44 rounded-[35%] bg-[#facc15] opacity-80 blur-[2px]" />
+        <div className="absolute top-28 -right-12 w-48 h-80 rounded-[40%] bg-[#ff4fa3] opacity-70 blur-[2px]" />
+        <div className="absolute bottom-0 left-0 w-80 h-36 rounded-tr-[90px] rounded-tl-[40px] bg-[#14b8a6] opacity-70 blur-[2px]" />
+        <div className="absolute inset-0 opacity-[0.04] bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:22px_22px]" />
+        <div className="absolute inset-0 bg-[#07111f]/70" />
+      </div>
 
-        {loading ? (
-          <div className="text-slate-300">Cargando datos...</div>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-semibold">Solicitudes activas</h2>
-                <span className="text-sm bg-yellow-600/20 text-yellow-300 px-3 py-1 rounded-full">
-                  {activeRequests.length} activas
-                </span>
-              </div>
+      <section className="relative max-w-7xl mx-auto px-5 py-8 md:py-10">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="text-sm text-yellow-200 hover:underline mb-6"
+        >
+          ← Volver al dashboard
+        </button>
 
-              <div className="space-y-4">
-                {activeRequests.length === 0 ? (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-slate-400">
-                    No hay solicitudes activas.
-                  </div>
-                ) : (
-                  activeRequests.map((request) => {
-                    const recommendedVehicles = getRecommendedVehicles(
-                      request,
-                      availableVehicles
-                    )
+        <header className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-6 md:p-8 shadow-2xl shadow-black/30 mb-8">
+          <p className="text-sm uppercase tracking-[0.25em] text-yellow-200 mb-3">
+            Centro de control
+          </p>
 
-                    const assignedVehicle = request.assigned_vehicle_id
-                      ? vehicleById.get(request.assigned_vehicle_id)
-                      : undefined
+          <h1 className="text-3xl md:text-4xl font-bold mb-3">
+            Panel administrador
+          </h1>
 
-                    return (
-                      <div
-                        key={request.id}
-                        className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="text-lg font-semibold">
-                              {request.full_name}
-                            </h3>
-                            <p className="text-slate-300">{request.phone}</p>
-                          </div>
+          <p className="text-slate-200 max-w-3xl leading-relaxed">
+            Supervisa solicitudes, choferes disponibles y asignaciones del
+            evento. Esta vista será el respaldo manual cuando la automatización
+            necesite ajustes.
+          </p>
+        </header>
 
-                          <span className="text-xs bg-yellow-600/20 text-yellow-300 px-3 py-1 rounded-full">
-                            {request.status}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 space-y-2 text-sm text-slate-300">
-                          <p>
-                            <span className="text-slate-400">Recogida:</span>{' '}
-                            {request.pickup_address}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Zona:</span>{' '}
-                            {request.pickup_zone || 'Sin zona'}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Destino:</span>{' '}
-                            {request.destination_address}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Fecha:</span>{' '}
-                            {request.trip_date}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Hora:</span>{' '}
-                            {request.requested_time}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Pasajeros:</span>{' '}
-                            {request.passenger_count}
-                          </p>
-                          <p>
-                            <span className="text-slate-400">Observaciones:</span>{' '}
-                            {request.notes || 'Sin observaciones'}
-                          </p>
-
-                          {assignedVehicle && (
-                            <p>
-                              <span className="text-slate-400">
-                                Vehículo asignado:
-                              </span>{' '}
-                              {assignedVehicle.driver_name} — {assignedVehicle.plate}
-                            </p>
-                          )}
-                        </div>
-
-                        {request.status !== 'pendiente' && (
-                          <div className="mt-4">
-                            <button
-                              onClick={() =>
-                                openWhatsAppForRequest(request, assignedVehicle)
-                              }
-                              className="rounded-lg bg-green-700 hover:bg-green-600 px-3 py-2 text-sm font-semibold"
-                            >
-                              Avisar por WhatsApp
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'asignado' && (
-                          <div className="mt-4 flex gap-2 flex-wrap">
-                            <button
-                              onClick={() =>
-                                updateTripStatus(request, 'en_camino')
-                              }
-                              className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-sm font-semibold"
-                            >
-                              Marcar en camino
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'en_camino' && (
-                          <div className="mt-4 flex gap-2 flex-wrap">
-                            <button
-                              onClick={() => updateTripStatus(request, 'llego')}
-                              className="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-sm font-semibold"
-                            >
-                              Marcar llegó
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'llego' && (
-                          <div className="mt-4 flex gap-2 flex-wrap">
-                            <button
-                              onClick={() =>
-                                updateTripStatus(request, 'a_bordo')
-                              }
-                              className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-semibold"
-                            >
-                              Marcar pasajero a bordo
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'a_bordo' && (
-                          <div className="mt-4 flex gap-2 flex-wrap">
-                            <button
-                              onClick={() =>
-                                updateTripStatus(request, 'completado')
-                              }
-                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-sm font-semibold"
-                            >
-                              Marcar viaje completado
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'pendiente' && (
-                          <div className="mt-5 border-t border-slate-800 pt-4">
-                            <h4 className="text-sm font-semibold text-slate-200 mb-3">
-                              Vehículos recomendados por zona y cupos
-                            </h4>
-
-                            {recommendedVehicles.length === 0 ? (
-                              <div className="rounded-xl bg-red-600/10 border border-red-500/20 p-3 text-sm text-red-300">
-                                No hay vehículos disponibles con cupos suficientes
-                                para esta solicitud.
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {recommendedVehicles.map((vehicle, index) => {
-                                  const sameZone =
-                                    normalizeZone(vehicle.current_zone) ===
-                                    normalizeZone(request.pickup_zone)
-
-                                  const currentAssigning =
-                                    assigningId === `${request.id}-${vehicle.id}`
-
-                                  return (
-                                    <div
-                                      key={vehicle.id}
-                                      className="rounded-xl border border-slate-800 bg-slate-950/60 p-4"
-                                    >
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                          <p className="font-medium">
-                                            #{index + 1} {vehicle.driver_name} —{' '}
-                                            {vehicle.plate}
-                                          </p>
-                                          <p className="text-sm text-slate-400">
-                                            {vehicle.vehicle_model || 'Sin modelo'}
-                                          </p>
-                                        </div>
-
-                                        <div className="flex gap-2 flex-wrap justify-end">
-                                          {sameZone && (
-                                            <span className="text-xs bg-green-600/20 text-green-300 px-3 py-1 rounded-full">
-                                              Misma zona
-                                            </span>
-                                          )}
-                                          <span className="text-xs bg-blue-600/20 text-blue-300 px-3 py-1 rounded-full">
-                                            {vehicle.capacity_available} cupos
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="mt-3 text-sm text-slate-300 space-y-1">
-                                        <p>
-                                          <span className="text-slate-400">
-                                            Zona actual:
-                                          </span>{' '}
-                                          {vehicle.current_zone || 'Sin zona'}
-                                        </p>
-                                        <p>
-                                          <span className="text-slate-400">
-                                            Teléfono:
-                                          </span>{' '}
-                                          {vehicle.driver_phone}
-                                        </p>
-                                        <p>
-                                          <span className="text-slate-400">
-                                            Disponible desde:
-                                          </span>{' '}
-                                          {vehicle.available_from || 'No informado'}
-                                        </p>
-                                      </div>
-
-                                      <button
-                                        onClick={() =>
-                                          assignVehicle(
-                                            request.id,
-                                            vehicle,
-                                            request.passenger_count
-                                          )
-                                        }
-                                        disabled={currentAssigning}
-                                        className="mt-3 w-full rounded-lg bg-green-600 hover:bg-green-500 px-3 py-2 text-sm font-semibold disabled:opacity-60"
-                                      >
-                                        {currentAssigning
-                                          ? 'Asignando...'
-                                          : 'Asignar vehículo'}
-                                      </button>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </section>
-
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-semibold">Vehículos disponibles</h2>
-                <span className="text-sm bg-green-600/20 text-green-300 px-3 py-1 rounded-full">
-                  {availableVehicles.length} disponibles
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {availableVehicles.length === 0 ? (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-slate-400">
-                    No hay vehículos disponibles.
-                  </div>
-                ) : (
-                  availableVehicles.map((vehicle) => (
-                    <div
-                      key={vehicle.id}
-                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-lg font-semibold">
-                            {vehicle.driver_name}
-                          </h3>
-                          <p className="text-slate-300">{vehicle.driver_phone}</p>
-                        </div>
-
-                        <span className="text-xs bg-green-600/20 text-green-300 px-3 py-1 rounded-full">
-                          {vehicle.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 space-y-2 text-sm text-slate-300">
-                        <p>
-                          <span className="text-slate-400">Patente:</span>{' '}
-                          {vehicle.plate}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Vehículo:</span>{' '}
-                          {vehicle.vehicle_model || 'Sin modelo'}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Zona actual:</span>{' '}
-                          {vehicle.current_zone || 'Sin zona'}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Disponible desde:</span>{' '}
-                          {vehicle.available_from || 'No informado'}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Capacidad total:</span>{' '}
-                          {vehicle.capacity_total}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Cupos disponibles:</span>{' '}
-                          {vehicle.capacity_available}
-                        </p>
-                        <p>
-                          <span className="text-slate-400">Observaciones:</span>{' '}
-                          {vehicle.notes || 'Sin observaciones'}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+        {mensaje && (
+          <div className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 text-yellow-100 p-4 mb-6">
+            {mensaje}
           </div>
         )}
-      </div>
+
+        {/* Métricas */}
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <StatCard title="Solicitudes" value={stats.total} />
+          <StatCard title="Pendientes" value={stats.pendientes} />
+          <StatCard title="Asignadas" value={stats.asignadas} />
+          <StatCard title="Finalizadas" value={stats.finalizadas} />
+          <StatCard title="Choferes disp." value={stats.disponibles} />
+        </section>
+
+        {/* Solicitudes */}
+        <section className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-5 md:p-6 shadow-2xl shadow-black/30 mb-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-yellow-200 mb-2">
+                Operación
+              </p>
+              <h2 className="text-2xl font-bold">Solicitudes de transporte</h2>
+            </div>
+
+            <p className="text-sm text-slate-300">
+              Últimas solicitudes recibidas
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead>
+                <tr className="text-left text-slate-400 border-b border-white/10">
+                  <th className="py-3 pr-4">Pasajero</th>
+                  <th className="py-3 pr-4">Teléfono</th>
+                  <th className="py-3 pr-4">Comuna</th>
+                  <th className="py-3 pr-4">Recogida</th>
+                  <th className="py-3 pr-4">Destino</th>
+                  <th className="py-3 pr-4">Fecha</th>
+                  <th className="py-3 pr-4">Hora</th>
+                  <th className="py-3 pr-4">Pax</th>
+                  <th className="py-3 pr-4">Estado</th>
+                  <th className="py-3 pr-4">Chofer</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {requests.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="py-8 text-center text-slate-400">
+                      No hay solicitudes registradas.
+                    </td>
+                  </tr>
+                )}
+
+                {requests.map((request) => (
+                  <tr
+                    key={request.id}
+                    className="border-b border-white/5 text-slate-200"
+                  >
+                    <td className="py-3 pr-4 font-medium">
+                      {request.full_name}
+                    </td>
+                    <td className="py-3 pr-4">{request.phone}</td>
+                    <td className="py-3 pr-4">{request.pickup_zone}</td>
+                    <td className="py-3 pr-4 max-w-[220px] truncate">
+                      {request.pickup_address}
+                    </td>
+                    <td className="py-3 pr-4 max-w-[220px] truncate">
+                      {request.destination_address}
+                    </td>
+                    <td className="py-3 pr-4">{request.trip_date}</td>
+                    <td className="py-3 pr-4">{request.requested_time}</td>
+                    <td className="py-3 pr-4">{request.passenger_count}</td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge status={request.status} />
+                    </td>
+                    <td className="py-3 pr-4">
+                      {getDriverName(request.assigned_driver_id)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Choferes */}
+        <section className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-5 md:p-6 shadow-2xl shadow-black/30">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-yellow-200 mb-2">
+                Equipo
+              </p>
+              <h2 className="text-2xl font-bold">Choferes registrados</h2>
+            </div>
+
+            <p className="text-sm text-slate-300">
+              Disponibilidad y capacidad operativa
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="text-left text-slate-400 border-b border-white/10">
+                  <th className="py-3 pr-4">Chofer</th>
+                  <th className="py-3 pr-4">Teléfono</th>
+                  <th className="py-3 pr-4">Patente</th>
+                  <th className="py-3 pr-4">Capacidad</th>
+                  <th className="py-3 pr-4">Comuna base</th>
+                  <th className="py-3 pr-4">Disponible</th>
+                  <th className="py-3 pr-4">Activo</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {drivers.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      No hay choferes registrados.
+                    </td>
+                  </tr>
+                )}
+
+                {drivers.map((driver) => (
+                  <tr
+                    key={driver.id}
+                    className="border-b border-white/5 text-slate-200"
+                  >
+                    <td className="py-3 pr-4 font-medium">{driver.nombre}</td>
+                    <td className="py-3 pr-4">{driver.telefono}</td>
+                    <td className="py-3 pr-4">
+                      {driver.patente || "Sin patente"}
+                    </td>
+                    <td className="py-3 pr-4">{driver.capacidad}</td>
+                    <td className="py-3 pr-4">
+                      {driver.comuna_base || "Sin comuna"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <BooleanBadge value={driver.disponible} />
+                    </td>
+                    <td className="py-3 pr-4">
+                      <BooleanBadge value={driver.activo} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
     </main>
-  )
+  );
+}
+
+function StatCard({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-5 shadow-xl shadow-black/20">
+      <p className="text-xs uppercase tracking-wide text-slate-400 mb-2">
+        {title}
+      </p>
+      <p className="text-3xl font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status?.toLowerCase();
+
+  const style =
+    normalized === "asignado"
+      ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/30"
+      : normalized === "pendiente"
+      ? "bg-yellow-400/15 text-yellow-200 border-yellow-400/30"
+      : normalized === "finalizado"
+      ? "bg-blue-400/15 text-blue-200 border-blue-400/30"
+      : normalized === "cancelado"
+      ? "bg-red-400/15 text-red-200 border-red-400/30"
+      : "bg-slate-400/15 text-slate-200 border-slate-400/30";
+
+  return (
+    <span className={`px-3 py-1 rounded-full border text-xs font-semibold ${style}`}>
+      {status || "sin estado"}
+    </span>
+  );
+}
+
+function BooleanBadge({ value }: { value: boolean }) {
+  return value ? (
+    <span className="px-3 py-1 rounded-full border text-xs font-semibold bg-emerald-400/15 text-emerald-200 border-emerald-400/30">
+      Sí
+    </span>
+  ) : (
+    <span className="px-3 py-1 rounded-full border text-xs font-semibold bg-red-400/15 text-red-200 border-red-400/30">
+      No
+    </span>
+  );
 }
