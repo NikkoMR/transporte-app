@@ -23,10 +23,11 @@ export default function ForgotPasswordPage() {
     };
   }, []); // El array vacío asegura que el useEffect se ejecute solo una vez cuando el componente se monte
 
+  // Cambié el método a supabase.auth.resetPasswordForEmail directamente
   async function handlePasswordReset(e: React.FormEvent) {
     e.preventDefault();
 
-    const { error } = await supabase.auth.api.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email); // Cambié el método
 
     if (error) {
       setMessage("Error: " + error.message);
