@@ -1,9 +1,9 @@
-import type { NextConfig } from "next";
+// next.config.js
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   reactStrictMode: true, // Activar el modo estricto en React para detectar problemas
 
-  // Desactivar Turbopack si no se necesita para evitar problemas con el build
+  // Desactivar Turbopack si no lo necesitas para evitar problemas con el build
   experimental: {
     turbopack: false, // Desactivar Turbopack, útil si estás teniendo problemas con él
   },
@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'your-image-domain.com', // Reemplaza esto con tu dominio de imágenes
+        hostname: 'your-image-domain.com', // Cambia esto con tus dominios de imágenes
       },
     ],
   },
@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
     KAPSO_PHONE_ID: process.env.KAPSO_PHONE_ID, // ID de teléfono de Kapso (para WhatsApp)
   },
 
-  // Redirecciones si es necesario redirigir algunas rutas específicas
+  // Redirecciones (si necesitas redirigir rutas específicas)
   async redirects() {
     return [
       {
@@ -48,4 +48,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
