@@ -37,7 +37,9 @@ export default function ConductorPage() {
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [actualizandoViaje, setActualizandoViaje] = useState<string | null>(null);
+  const [actualizandoViaje, setActualizandoViaje] = useState<string | null>(
+    null
+  );
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
@@ -161,6 +163,24 @@ export default function ConductorPage() {
     setGuardando(false);
   }
 
+  async function reintentarAsignacionPendiente() {
+    const response = await fetch("/api/admin/retry-assignment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result?.error || "Error reintentando asignación");
+    }
+
+    return result;
+  }
+
   async function cambiarEstadoViaje(tripId: string, nuevoEstado: string) {
     if (!driverId) return;
 
@@ -201,12 +221,41 @@ export default function ConductorPage() {
       }
 
       setDisponible(true);
-      setMensaje("Viaje finalizado. Ahora estás disponible nuevamente.");
+
+      try {
+        const retryResult = await reintentarAsignacionPendiente();
+
+        if (retryResult.assigned) {
+          setMensaje(
+            "Viaje finalizado. Se asignó automáticamente una solicitud pendiente compatible."
+          );
+        } else {
+          setMensaje(
+            "Viaje finalizado. Ahora estás disponible nuevamente. No había solicitudes pendientes compatibles."
+          );
+        }
+      } catch (retryError) {
+        console.error("Error reintentando asignación:", retryError);
+        setMensaje(
+          "Viaje finalizado. Ahora estás disponible, pero no se pudo reintentar asignación automática."
+        );
+      }
     } else {
       setMensaje("Estado del viaje actualizado correctamente.");
     }
 
     await cargarViajes(driverId);
+
+    const { data: updatedDriver } = await supabase
+      .from("drivers")
+      .select("disponible")
+      .eq("id", driverId)
+      .maybeSingle();
+
+    if (updatedDriver) {
+      setDisponible(updatedDriver.disponible ?? true);
+    }
+
     setActualizandoViaje(null);
   }
 
@@ -492,7 +541,8 @@ function TripCard({
           </div>
 
           <p className="text-slate-300 text-sm">
-            {trip.trip_date} · {trip.requested_time} · {trip.passenger_count} pasajeros
+            {trip.trip_date} · {trip.requested_time} ·{" "}
+            {trip.passenger_count} pasajeros
           </p>
         </div>
 

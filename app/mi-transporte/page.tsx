@@ -17,6 +17,7 @@ type TransportRequest = {
   notes: string | null;
   status: string;
   assigned_driver_id: string | null;
+  passenger_user_id: string | null;
   created_at?: string;
 };
 
@@ -31,12 +32,27 @@ type Driver = {
   activo: boolean;
 };
 
+type TripFeedback = {
+  id: string;
+  transport_request_id: string;
+  passenger_user_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+};
+
 export default function MiTransportePage() {
   const router = useRouter();
 
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<TransportRequest | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
+  const [feedback, setFeedback] = useState<TripFeedback | null>(null);
+
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [guardandoFeedback, setGuardandoFeedback] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
@@ -46,6 +62,8 @@ export default function MiTransportePage() {
   async function cargarSolicitud() {
     setLoading(true);
     setMensaje("");
+    setDriver(null);
+    setFeedback(null);
 
     const { data: userData } = await supabase.auth.getUser();
 
@@ -53,6 +71,8 @@ export default function MiTransportePage() {
       router.push("/login");
       return;
     }
+
+    setUserId(userData.user.id);
 
     const { data: requestData, error: requestError } = await supabase
       .from("transport_requests")
@@ -85,7 +105,60 @@ export default function MiTransportePage() {
       }
     }
 
+    if (requestData?.id) {
+      const { data: feedbackData, error: feedbackError } = await supabase
+        .from("trip_feedback")
+        .select("*")
+        .eq("transport_request_id", requestData.id)
+        .eq("passenger_user_id", userData.user.id)
+        .maybeSingle();
+
+      if (feedbackError) {
+        console.error(feedbackError);
+      } else {
+        setFeedback(feedbackData as TripFeedback | null);
+      }
+    }
+
     setLoading(false);
+  }
+
+  async function enviarFeedback(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!userId || !request) return;
+
+    if (request.status !== "finalizado") {
+      setMensaje("Solo puedes evaluar un viaje finalizado.");
+      return;
+    }
+
+    setGuardandoFeedback(true);
+    setMensaje("");
+
+    const { data, error } = await supabase
+      .from("trip_feedback")
+      .insert({
+        transport_request_id: request.id,
+        passenger_user_id: userId,
+        rating,
+        comment: comment.trim() || null,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error(error);
+      setMensaje(
+        "No se pudo guardar tu feedback. Puede que ya hayas evaluado este viaje."
+      );
+      setGuardandoFeedback(false);
+      return;
+    }
+
+    setFeedback(data as TripFeedback);
+    setMensaje("¡Gracias! Tu feedback fue enviado correctamente.");
+    setGuardandoFeedback(false);
   }
 
   if (loading) {
@@ -130,7 +203,7 @@ export default function MiTransportePage() {
 
           <p className="text-slate-200 max-w-3xl leading-relaxed">
             Aquí puedes revisar el estado de tu traslado, los datos del chofer
-            asignado y la información de recogida.
+            asignado y dejar tu feedback al finalizar el viaje.
           </p>
         </header>
 
@@ -253,10 +326,112 @@ export default function MiTransportePage() {
                   </p>
                 )}
               </div>
+
+              {request.status === "finalizado" && (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-6 md:p-8 shadow-2xl shadow-black/30">
+                  <p className="text-sm uppercase tracking-[0.2em] text-yellow-200 mb-3">
+                    Feedback
+                  </p>
+
+                  {feedback ? (
+                    <>
+                      <h3 className="text-2xl font-bold mb-3">
+                        Gracias por tu evaluación
+                      </h3>
+
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <p className="text-3xl mb-2">
+                          {"⭐".repeat(feedback.rating)}
+                        </p>
+
+                        <p className="text-slate-300">
+                          {feedback.comment || "Sin comentario adicional."}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <form onSubmit={enviarFeedback}>
+                      <h3 className="text-2xl font-bold mb-3">
+                        ¿Cómo estuvo tu traslado?
+                      </h3>
+
+                      <p className="text-slate-300 mb-5">
+                        Tu opinión nos ayuda a mejorar la operación del evento.
+                      </p>
+
+                      <div className="mb-5">
+                        <label className="block text-sm font-semibold mb-2 text-slate-200">
+                          Calificación
+                        </label>
+
+                        <div className="flex gap-2 flex-wrap">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setRating(star)}
+                              className={`w-12 h-12 rounded-2xl text-2xl border transition ${
+                                rating >= star
+                                  ? "bg-yellow-300 text-[#111827] border-yellow-300"
+                                  : "bg-black/20 border-white/10"
+                              }`}
+                            >
+                              ⭐
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mb-5">
+                        <label className="block text-sm font-semibold mb-2 text-slate-200">
+                          Comentario opcional
+                        </label>
+
+                        <textarea
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          placeholder="Ej: llegó a tiempo, fue amable, me costó encontrar el punto..."
+                          className="input-festival min-h-28 resize-none"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={guardandoFeedback}
+                        className="w-full rounded-xl bg-[#facc15] hover:bg-[#fde047] text-[#111827] px-5 py-3 font-bold transition disabled:opacity-60"
+                      >
+                        {guardandoFeedback
+                          ? "Enviando feedback..."
+                          : "Enviar feedback"}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
             </section>
           </div>
         )}
       </section>
+
+      <style jsx global>{`
+        .input-festival {
+          width: 100%;
+          border-radius: 0.9rem;
+          background: rgba(0, 0, 0, 0.22);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 0.85rem 1rem;
+          color: white;
+          outline: none;
+        }
+
+        .input-festival::placeholder {
+          color: rgb(148 163 184);
+        }
+
+        .input-festival:focus {
+          border-color: #facc15;
+        }
+      `}</style>
     </main>
   );
 }
@@ -311,7 +486,7 @@ function InfoItem({ title, value }: { title: string; value: string }) {
       <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">
         {title}
       </p>
-      <p className="font-semibold text-slate-100">{value}</p>
+      <p className="font-semibold text-slate-100 break-words">{value}</p>
     </div>
   );
 }

@@ -104,7 +104,6 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#07111f] text-white relative overflow-hidden">
-      {/* Fondo estilo festival */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-20 -left-16 w-72 h-72 rounded-[40%] bg-[#8b5cf6] opacity-70 blur-[2px]" />
         <div className="absolute -top-12 left-36 w-80 h-44 rounded-[45%] bg-[#06b6d4] opacity-60 blur-[2px]" />
@@ -117,7 +116,6 @@ export default function DashboardPage() {
       </div>
 
       <section className="relative max-w-6xl mx-auto px-5 py-8 md:px-8 md:py-10">
-        {/* Top bar */}
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-white text-[#0d1117] flex items-center justify-center text-2xl font-bold shadow-lg">
@@ -155,7 +153,6 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Hero */}
         <section className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl overflow-hidden mb-8 shadow-2xl shadow-black/30">
           <div className="grid lg:grid-cols-[1.3fr_.7fr] gap-0">
             <div className="p-6 md:p-8">
@@ -207,7 +204,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Dashboard según rol */}
         {role === "passenger" && (
           <>
             <SectionTitle
@@ -302,17 +298,16 @@ export default function DashboardPage() {
               />
 
               <ActionCard
-                href="/vehiculos"
-                title="Registrar vehículo"
-                description="Administra vehículos y disponibilidad para el evento."
-                icon="🚙"
+                href="/admin/choferes"
+                title="Gestionar choferes"
+                description="Edita disponibilidad, capacidad, comuna base y datos operativos."
+                icon="🚐"
                 accent="from-yellow-400/25 to-orange-500/10"
               />
             </div>
           </>
         )}
 
-        {/* Bloque extra */}
         <section className="grid lg:grid-cols-2 gap-5">
           <div className="rounded-2xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-6">
             <h3 className="text-lg font-semibold mb-3">Experiencia festival</h3>
