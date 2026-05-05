@@ -18,7 +18,7 @@ export default function AdminPage() {
 
     // Limpieza de la suscripción cuando el componente se desmonta
     return () => {
-      channel.unsubscribe(); // Elimina la suscripción correctamente
+      channel.unsubscribe(); // Usa unsubscribe en lugar de removeSubscription
     };
   }, []); // El array vacío asegura que el useEffect se ejecute solo una vez cuando el componente se monte
 
