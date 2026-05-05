@@ -1,67 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase"; // Asegúrate de que este sea el archivo correcto de configuración de Supabase
 
-export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const router = useRouter();
+export default function AdminPage() {
+  const [requests, setRequests] = useState<any[]>([]);
 
-  // Handle password reset
-  async function handlePasswordReset(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    // Establecer el canal y suscribirse al evento de inserción en la tabla
+    const channel = supabase
+      .channel('public:transport_requests') // Nombre del canal
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transport_requests' }, (payload) => { // Cambié 'INSERT' por 'postgres_changes'
+        console.log("Nueva solicitud:", payload.new); // Log para ver qué contiene la solicitud
+        setRequests((prevRequests) => [payload.new, ...prevRequests]); // Actualiza el estado con la nueva solicitud
+      })
+      .subscribe(); // Activa la suscripción al canal
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-
-    if (error) {
-      setMessage("Error: " + error.message);
-    } else {
-      setMessage("Revisa tu correo electrónico para restablecer la contraseña.");
-      // You can optionally redirect to the login page after sending the reset email
-      setTimeout(() => {
-        router.push("/login");
-      }, 3000);
-    }
-  }
+    // Limpieza de la suscripción cuando el componente se desmonta
+    return () => {
+      supabase.removeSubscription(channel); // Elimina la suscripción para evitar fugas de memoria
+    };
+  }, []); // El array vacío asegura que el useEffect se ejecute solo una vez cuando el componente se monte
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-white relative overflow-hidden flex items-center justify-center px-5 py-10">
-      <section className="relative w-full max-w-md">
-        <div className="text-center mb-7">
-          <h1 className="text-3xl font-bold">Olvidaste tu contraseña</h1>
-          <p className="text-slate-300 mt-2">
-            Ingresa tu correo electrónico para recibir un enlace de
-            restablecimiento de contraseña.
-          </p>
-        </div>
-
-        <form
-          onSubmit={handlePasswordReset}
-          className="rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur-xl p-6 shadow-2xl shadow-black/30"
-        >
-          <label className="block text-sm font-semibold mb-2">Correo electrónico</label>
-          <input
-            className="w-full mb-4 px-4 py-3 rounded-xl bg-black/20 border border-white/10 focus:border-yellow-300 outline-none placeholder:text-slate-500"
-            type="email"
-            placeholder="correo@ejemplo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          {message && (
-            <p className="text-center text-sm text-yellow-300 mb-4">{message}</p>
+    <main className="min-h-screen bg-[#07111f] text-white">
+      <section>
+        <div className="p-6">
+          <h1 className="text-3xl font-bold mb-5">Solicitudes de Transporte</h1>
+          {requests.length > 0 ? (
+            requests.map((request) => (
+              <div key={request.id} className="rounded-2xl border border-white/20 p-6 mb-4">
+                <h3 className="font-bold">{request.full_name}</h3>
+                <p>{request.requested_time} pasajeros</p>
+                <p>{request.status}</p>
+              </div>
+            ))
+          ) : (
+            <p>No hay solicitudes disponibles.</p>
           )}
-
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-[#facc15] hover:bg-[#fde047] text-[#111827] py-3 font-bold transition shadow-lg shadow-yellow-950/20"
-          >
-            Enviar enlace de restablecimiento
-          </button>
-        </form>
+        </div>
       </section>
     </main>
   );
