@@ -1,6 +1,4 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+module.exports = {
   reactStrictMode: true, // Activar el modo estricto en React para detectar problemas
   
   // Configuración para las imágenes (si las usas de dominios externos)
@@ -42,5 +40,3 @@ const nextConfig: NextConfig = {
     ];
   },
 };
-
-export default nextConfig;
