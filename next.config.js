@@ -1,19 +1,14 @@
-// next.config.js
+import type { NextConfig } from "next";
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true, // Activar el modo estricto en React para detectar problemas
-
-  // Desactivar Turbopack si no lo necesitas para evitar problemas con el build
-  experimental: {
-    turbopack: false, // Desactivar Turbopack, útil si estás teniendo problemas con él
-  },
-
+  
   // Configuración para las imágenes (si las usas de dominios externos)
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'your-image-domain.com', // Cambia esto con tus dominios de imágenes
+        hostname: 'your-image-domain.com', // Cambia esto con tu dominio de imágenes
       },
     ],
   },
@@ -48,4 +43,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
