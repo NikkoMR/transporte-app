@@ -1,4 +1,4 @@
-"use client"; // Indica que este es un componente de cliente
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; // Asegúrate de que este sea el archivo correcto de configuración de Supabase
@@ -10,10 +10,10 @@ export default function AdminPage() {
     // Establecer el canal y suscribirse al evento de inserción en la tabla
     const channel = supabase
       .channel('public:transport_requests') // Nombre del canal
-      .on('INSERT', (payload) => { // Evento que escuchamos (INSERT)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transport_requests' }, (payload) => { // Cambié 'INSERT' por 'postgres_changes'
         console.log("Nueva solicitud:", payload.new); // Log para ver qué contiene la solicitud
         setRequests((prevRequests) => [payload.new, ...prevRequests]); // Actualiza el estado con la nueva solicitud
-      }, {}) // Agregado el tercer argumento vacío (opcional)
+      })
       .subscribe(); // Activa la suscripción al canal
 
     // Limpieza de la suscripción cuando el componente se desmonta
