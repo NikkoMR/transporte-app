@@ -18,7 +18,7 @@ export default function AdminPage() {
 
     // Limpieza de la suscripción cuando el componente se desmonta
     return () => {
-      supabase.removeSubscription(channel); // Elimina la suscripción para evitar fugas de memoria
+      channel.unsubscribe(); // Elimina la suscripción correctamente
     };
   }, []); // El array vacío asegura que el useEffect se ejecute solo una vez cuando el componente se monte
 
